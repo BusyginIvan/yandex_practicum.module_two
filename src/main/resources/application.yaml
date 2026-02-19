@@ -5,3 +5,4 @@ spring:
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
+  sql.init.mode: never  # never, always
