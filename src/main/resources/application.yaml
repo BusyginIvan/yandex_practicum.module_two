@@ -6,3 +6,4 @@ spring:
     password: ${DB_PASSWORD}
     driver-class-name: org.postgresql.Driver
   sql.init.mode: never  # never, always
+  jpa.hibernate.ddl-auto: validate
