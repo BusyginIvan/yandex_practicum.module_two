@@ -10,11 +10,17 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.multipart.MultipartFile;
+import ru.yandex.practicum.market.service.AdminItemsService;
 
 @Validated
 @Controller
 @RequestMapping("/admin/items")
 public class AdminItemsController {
+    private final AdminItemsService adminItemsService;
+
+    public AdminItemsController(AdminItemsService adminItemsService) {
+        this.adminItemsService = adminItemsService;
+    }
 
     @GetMapping("/new")
     public String newItemForm(
@@ -32,6 +38,7 @@ public class AdminItemsController {
         @Positive @RequestParam long price,
         @RequestParam(required = false) MultipartFile image
     ) {
+        adminItemsService.createItem(title, description, price, image);
         return "redirect:/admin/items/new?created=true";
     }
 }
