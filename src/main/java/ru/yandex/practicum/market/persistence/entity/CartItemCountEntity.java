@@ -28,4 +28,6 @@ public class CartItemCountEntity {
 
     @Column(name = "count", nullable = false)
     private int count;
+
+    public long getSubtotal() { return item.getPrice() * count; }
 }

@@ -8,29 +8,25 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import ru.yandex.practicum.market.api.model.ItemModel;
+import ru.yandex.practicum.market.api.model.CartModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
-
-import java.util.List;
+import ru.yandex.practicum.market.service.CartService;
 
 @Validated
 @Controller
 @RequestMapping("/cart/items")
 public class CartController {
+    private final CartService cartService;
 
-    private static final ItemModel ITEM_STUB = new ItemModel(
-        1L,
-        "title",
-        "description",
-        100,
-        1,
-        0
-    );
+    public CartController(CartService cartService) {
+        this.cartService = cartService;
+    }
 
     @GetMapping
     public String getItems(Model model) {
-        model.addAttribute("items", List.of(ITEM_STUB));
-        model.addAttribute("total", 100);
+        CartModel cart = cartService.getCart();
+        model.addAttribute("items", cart.items());
+        model.addAttribute("total", cart.total());
 
         return "cart";
     }
@@ -41,8 +37,9 @@ public class CartController {
         @RequestParam CartItemCountAction action,
         Model model
     ) {
-        model.addAttribute("items", List.of(ITEM_STUB));
-        model.addAttribute("total", 100);
+        CartModel cart = cartService.changeItemCount(id, action);
+        model.addAttribute("items", cart.items());
+        model.addAttribute("total", cart.total());
 
         return "cart";
     }
