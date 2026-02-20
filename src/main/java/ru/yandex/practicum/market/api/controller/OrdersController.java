@@ -7,31 +7,22 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import ru.yandex.practicum.market.api.model.OrderItemModel;
-import ru.yandex.practicum.market.api.model.OrderModel;
-
-import java.util.List;
+import ru.yandex.practicum.market.service.OrdersService;
 
 @Validated
 @Controller
 public class OrdersController {
-    private static final OrderItemModel ITEM_STUB = new OrderItemModel(
-        1L,
-        "title",
-        100,
-        0
-    );
-    private static final OrderModel ORDER_STUB = new OrderModel(
-        1L,
-        List.of(ITEM_STUB),
-        100
-    );
+    private final OrdersService ordersService;
+
+    public OrdersController(OrdersService ordersService) {
+        this.ordersService = ordersService;
+    }
 
     @GetMapping("/orders")
     public String getOrders(
         Model model
     ) {
-        model.addAttribute("orders", List.of(ORDER_STUB));
+        model.addAttribute("orders", ordersService.getOrders());
         return "orders";
     }
 
@@ -41,13 +32,14 @@ public class OrdersController {
         @RequestParam(defaultValue = "false") boolean newOrder,
         Model model
     ) {
-        model.addAttribute("order", ORDER_STUB);
+        model.addAttribute("order", ordersService.getOrder(id));
         model.addAttribute("newOrder", newOrder);
         return "order";
     }
 
     @PostMapping("/buy")
     public String buy() {
-        return String.format("redirect:/orders/%d?newOrder=true", 0);
+        long orderId = ordersService.buy();
+        return String.format("redirect:/orders/%d?newOrder=true", orderId);
     }
 }

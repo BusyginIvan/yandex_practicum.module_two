@@ -21,10 +21,12 @@ import lombok.Setter;
         @Index(name = "idx_order_item_counts_order_id", columnList = "order_id")
     }
 )
-@Getter @Setter @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@Getter @Setter @NoArgsConstructor(access = AccessLevel.PUBLIC)
 public class OrderItemCountEntity {
     @EmbeddedId
     private OrderItemCountId id;
+    public Long getOrderId() { return id.getOrderId(); }
+    public Long getItemId() { return id.getItemId(); }
 
     @MapsId("orderId")
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
