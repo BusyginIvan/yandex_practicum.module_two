@@ -9,29 +9,25 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import ru.yandex.practicum.market.api.model.ItemModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
+import ru.yandex.practicum.market.service.ItemService;
 
 @Validated
 @Controller
 @RequestMapping("/items/{id}")
 public class ItemController {
+    private final ItemService itemService;
 
-    private static final ItemModel ITEM_STUB = new ItemModel(
-        1L,
-        "title",
-        "description",
-        100,
-        1,
-        0
-    );
+    public ItemController(ItemService itemService) {
+        this.itemService = itemService;
+    }
 
     @GetMapping
     public String getItem(
-        @PathVariable Long id,
+        @Positive @PathVariable Long id,
         Model model
     ) {
-        model.addAttribute("item", ITEM_STUB);
+        model.addAttribute("item", itemService.getItem(id));
         return "item";
     }
 
@@ -41,7 +37,7 @@ public class ItemController {
         @RequestParam CartItemCountAction action,
         Model model
     ) {
-        model.addAttribute("item", ITEM_STUB);
+        model.addAttribute("item", itemService.updateCartItemCount(id, action));
         return "item";
     }
 }

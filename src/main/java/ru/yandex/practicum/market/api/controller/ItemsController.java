@@ -13,6 +13,7 @@ import ru.yandex.practicum.market.api.model.ItemModel;
 import ru.yandex.practicum.market.api.model.PagingModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.domain.ItemSort;
+import ru.yandex.practicum.market.service.ItemService;
 
 import java.util.List;
 
@@ -20,6 +21,11 @@ import java.util.List;
 @Controller
 @RequestMapping({"/items", "/"})
 public class ItemsController {
+    private final ItemService itemService;
+
+    public ItemsController(ItemService itemService) {
+        this.itemService = itemService;
+    }
 
     private static final PagingModel PAGING_STUB = new PagingModel(
         5,
@@ -61,6 +67,8 @@ public class ItemsController {
         @Positive @RequestParam(defaultValue = "1") int pageNumber,
         @Positive @RequestParam(defaultValue = "5") int pageSize
     ) {
+        itemService.updateCartItemCount(id, action);
+
         return String.format(
             "redirect:/items?search=%s&sort=%s&pageNumber=%d&pageSize=%d",
             search,
