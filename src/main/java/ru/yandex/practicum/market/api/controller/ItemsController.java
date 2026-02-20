@@ -9,38 +9,23 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import ru.yandex.practicum.market.api.model.ItemModel;
-import ru.yandex.practicum.market.api.model.PagingModel;
+import ru.yandex.practicum.market.api.model.ItemsPageModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.domain.ItemSort;
 import ru.yandex.practicum.market.service.ItemService;
-
-import java.util.List;
+import ru.yandex.practicum.market.service.ItemsService;
 
 @Validated
 @Controller
 @RequestMapping({"/items", "/"})
 public class ItemsController {
+    private final ItemsService itemsService;
     private final ItemService itemService;
 
-    public ItemsController(ItemService itemService) {
+    public ItemsController(ItemsService itemsService, ItemService itemService) {
+        this.itemsService = itemsService;
         this.itemService = itemService;
     }
-
-    private static final PagingModel PAGING_STUB = new PagingModel(
-        5,
-        1,
-        false,
-        false
-    );
-    private static final ItemModel ITEM_STUB = new ItemModel(
-        1L,
-        "title",
-        "description",
-        100,
-        1,
-        0
-    );
 
     @GetMapping
     public String getItems(
@@ -50,10 +35,11 @@ public class ItemsController {
         @Positive @RequestParam(defaultValue = "5") int pageSize,
         Model model
     ) {
-        model.addAttribute("items", List.of(List.of(ITEM_STUB)));
+        ItemsPageModel itemsPage = itemsService.getItems(search, sort, pageNumber, pageSize);
+        model.addAttribute("items", itemsPage.items());
         model.addAttribute("search", search);
         model.addAttribute("sort", sort);
-        model.addAttribute("paging", PAGING_STUB);
+        model.addAttribute("paging", itemsPage.paging());
 
         return "items";
     }
