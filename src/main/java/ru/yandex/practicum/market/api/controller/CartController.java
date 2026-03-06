@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import ru.yandex.practicum.market.api.model.CartModel;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.service.CartService;
 
@@ -23,24 +23,24 @@ public class CartController {
     }
 
     @GetMapping
-    public String getItems(Model model) {
-        CartModel cart = cartService.getCart();
-        model.addAttribute("items", cart.items());
-        model.addAttribute("total", cart.total());
-
-        return "cart";
+    public Mono<String> getItems(Model model) {
+        return cartService.getCart().map(cart -> {
+            model.addAttribute("items", cart.items());
+            model.addAttribute("total", cart.total());
+            return "cart";
+        });
     }
 
     @PostMapping
-    public String changeItemCount(
+    public Mono<String> changeItemCount(
         @Positive @RequestParam Long id,
         @RequestParam CartItemCountAction action,
         Model model
     ) {
-        CartModel cart = cartService.changeItemCount(id, action);
-        model.addAttribute("items", cart.items());
-        model.addAttribute("total", cart.total());
-
-        return "cart";
+        return cartService.changeItemCount(id, action).map(cart -> {
+            model.addAttribute("items", cart.items());
+            model.addAttribute("total", cart.total());
+            return "cart";
+        });
     }
 }

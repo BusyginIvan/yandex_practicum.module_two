@@ -7,4 +7,6 @@ public record ItemModel(
     long price,
     long imageId,
     int count
-) { }
+) {
+    public long getSubtotal() { return price * count; }
+}
