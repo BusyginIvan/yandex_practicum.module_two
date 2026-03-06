@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.service.ItemService;
 
@@ -23,21 +24,25 @@ public class ItemController {
     }
 
     @GetMapping
-    public String getItem(
+    public Mono<String> getItem(
         @Positive @PathVariable Long id,
         Model model
     ) {
-        model.addAttribute("item", itemService.getItem(id));
-        return "item";
+        return itemService.getItem(id).map(item -> {
+            model.addAttribute("item", item);
+            return "item";
+        });
     }
 
     @PostMapping
-    public String updateCartItemCounter(
+    public Mono<String> updateCartItemCounter(
         @Positive @PathVariable Long id,
         @RequestParam CartItemCountAction action,
         Model model
     ) {
-        model.addAttribute("item", itemService.updateCartItemCount(id, action));
-        return "item";
+        return itemService.updateCartItemCount(id, action).map(item -> {
+            model.addAttribute("item", item);
+            return "item";
+        });
     }
 }

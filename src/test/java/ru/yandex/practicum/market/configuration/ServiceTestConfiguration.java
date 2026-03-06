@@ -3,8 +3,10 @@ package ru.yandex.practicum.market.configuration;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageRepository;
+import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderItemCountRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderRepository;
@@ -21,8 +23,18 @@ public class ServiceTestConfiguration {
     }
 
     @Bean
+    public ItemR2dbcRepository itemR2dbcRepository() {
+        return mock(ItemR2dbcRepository.class);
+    }
+
+    @Bean
     public CartItemCountRepository cartItemCountRepository() {
         return mock(CartItemCountRepository.class);
+    }
+
+    @Bean
+    public CartItemCountR2dbcRepository cartItemCountR2dbcRepository() {
+        return mock(CartItemCountR2dbcRepository.class);
     }
 
     @Bean

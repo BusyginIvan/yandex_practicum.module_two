@@ -34,7 +34,7 @@ public class CartService {
 
     @Transactional
     public CartModel changeItemCount(long itemId, CartItemCountAction action) {
-        itemService.updateCartItemCount(itemId, action);
+        itemService.updateCartItemCount(itemId, action).block();
         return loadCart();
     }
 

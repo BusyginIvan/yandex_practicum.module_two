@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.ItemsPageModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.domain.ItemSort;
@@ -45,7 +46,7 @@ public class ItemsController {
     }
 
     @PostMapping
-    public String updateCartItemCounter(
+    public Mono<String> updateCartItemCounter(
         @Positive @RequestParam Long id,
         @RequestParam CartItemCountAction action,
         @Size(max = 255) @RequestParam(defaultValue = "") String search,
@@ -53,14 +54,10 @@ public class ItemsController {
         @Positive @RequestParam(defaultValue = "1") int pageNumber,
         @Positive @RequestParam(defaultValue = "5") int pageSize
     ) {
-        itemService.updateCartItemCount(id, action);
-
-        return String.format(
+        String redirect = String.format(
             "redirect:/items?search=%s&sort=%s&pageNumber=%d&pageSize=%d",
-            search,
-            sort,
-            pageNumber,
-            pageSize
+            search, sort, pageNumber, pageSize
         );
+        return itemService.updateCartItemCount(id, action).thenReturn(redirect);
     }
 }
