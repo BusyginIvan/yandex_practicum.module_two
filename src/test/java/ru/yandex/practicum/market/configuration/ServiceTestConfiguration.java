@@ -3,6 +3,7 @@ package ru.yandex.practicum.market.configuration;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageRepository;
@@ -25,6 +26,11 @@ public class ServiceTestConfiguration {
     @Bean
     public ItemR2dbcRepository itemR2dbcRepository() {
         return mock(ItemR2dbcRepository.class);
+    }
+
+    @Bean
+    public R2dbcEntityTemplate r2dbcEntityTemplate() {
+        return mock(R2dbcEntityTemplate.class);
     }
 
     @Bean

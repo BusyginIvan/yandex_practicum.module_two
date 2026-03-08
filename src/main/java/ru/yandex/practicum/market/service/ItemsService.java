@@ -1,26 +1,22 @@
 package ru.yandex.practicum.market.service;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+import org.springframework.data.relational.core.query.Criteria;
+import org.springframework.data.relational.core.query.Query;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.ItemModel;
 import ru.yandex.practicum.market.api.model.ItemsPageModel;
 import ru.yandex.practicum.market.api.model.PagingModel;
 import ru.yandex.practicum.market.domain.ItemSort;
-import ru.yandex.practicum.market.persistence.entity.CartItemCountEntity;
-import ru.yandex.practicum.market.persistence.entity.ItemEntity;
-import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository;
-import ru.yandex.practicum.market.persistence.repository.ItemRepository;
+import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
+import ru.yandex.practicum.market.persistence.entity.ItemR2dbcEntity;
+import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.service.mapper.ItemModelMapper;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 @Service
 public class ItemsService {
@@ -34,56 +30,74 @@ public class ItemsService {
         0
     );
 
-    private final ItemRepository itemRepository;
-    private final CartItemCountRepository cartItemCountRepository;
+    private final R2dbcEntityTemplate entityTemplate;
+    private final CartItemCountR2dbcRepository cartItemCountRepository;
     private final ItemModelMapper itemModelMapper;
 
     public ItemsService(
-        ItemRepository itemRepository,
-        CartItemCountRepository cartItemCountRepository,
+        R2dbcEntityTemplate entityTemplate,
+        CartItemCountR2dbcRepository cartItemCountRepository,
         ItemModelMapper itemModelMapper
     ) {
-        this.itemRepository = itemRepository;
+        this.entityTemplate = entityTemplate;
         this.cartItemCountRepository = cartItemCountRepository;
         this.itemModelMapper = itemModelMapper;
     }
 
-    @Transactional(readOnly = true)
-    public ItemsPageModel getItems(
+    public Mono<ItemsPageModel> getItems(
         String search,
         ItemSort sort,
         int pageNumber,
         int pageSize
     ) {
-        Pageable pageable = PageRequest.of(pageNumber - 1, pageSize, toSpringSort(sort));
-        Specification<ItemEntity> specification = buildSearchSpecification(search);
-        Page<ItemEntity> page = itemRepository.findAll(specification, pageable);
+        Criteria criteria = toSearchCriteria(search);
+        int offset = (pageNumber - 1) * pageSize;
 
-        List<Long> itemIds = page.stream().map(ItemEntity::getId).toList();
-        Map<Long, Integer> counts = cartItemCountRepository.findAllById(itemIds).stream()
-            .collect(Collectors.toMap(CartItemCountEntity::getItemId, CartItemCountEntity::getCount));
+        Query countQuery = Query.query(criteria);
+        Mono<Long> totalCountMono = entityTemplate.count(countQuery, ItemR2dbcEntity.class);
 
-        List<ItemModel> items = page.stream()
-            .map(item -> itemModelMapper.toItemModel(item, counts.getOrDefault(item.getId(), 0)))
-            .toList();
+        Sort sortSpec = toSpringSort(sort);
+        Query selectQuery = Query.query(criteria).sort(sortSpec).limit(pageSize).offset(offset);
+        Mono<List<ItemR2dbcEntity>> itemsMono =
+            entityTemplate.select(selectQuery, ItemR2dbcEntity.class).collectList();
 
-        return new ItemsPageModel(
-            toRows(items),
-            new PagingModel(pageSize, pageNumber, page.hasPrevious(), page.hasNext())
-        );
+        return Mono.zip(itemsMono, totalCountMono).flatMap(tuple -> {
+            List<ItemR2dbcEntity> items = tuple.getT1();
+            long totalCount = tuple.getT2();
+            boolean hasPrevious = pageNumber > 1;
+            long totalPages = totalCount == 0 ? 0 : (totalCount - 1) / pageSize + 1;
+            boolean hasNext = pageNumber < totalPages;
+
+            if (items.isEmpty()) {
+                return Mono.just(new ItemsPageModel(
+                    List.of(),
+                    new PagingModel(pageSize, pageNumber, hasPrevious, hasNext)
+                ));
+            }
+
+            List<Long> itemIds = items.stream().map(ItemR2dbcEntity::getId).toList();
+            return cartItemCountRepository.findAllById(itemIds)
+                .collectMap(CartItemCountR2dbcEntity::getItemId, CartItemCountR2dbcEntity::getCount)
+                .map(counts -> {
+                    List<ItemModel> itemModels = items.stream()
+                        .map(item ->
+                            itemModelMapper.toItemModel(item, counts.getOrDefault(item.getId(), 0))
+                        )
+                        .toList();
+                    return new ItemsPageModel(
+                        toRows(itemModels),
+                        new PagingModel(pageSize, pageNumber, hasPrevious, hasNext)
+                    );
+                });
+        });
     }
 
-    private static Specification<ItemEntity> buildSearchSpecification(String search) {
+    private static Criteria toSearchCriteria(String search) {
         String trimmedSearch = search == null ? "" : search.trim();
-        if (trimmedSearch.isEmpty()) {
-            return (root, query, cb) -> cb.conjunction();
-        }
-
-        String pattern = "%" + trimmedSearch.toLowerCase() + "%";
-        return (root, query, cb) -> cb.or(
-            cb.like(cb.lower(root.get("title")), pattern),
-            cb.like(cb.lower(root.get("description")), pattern)
-        );
+        if (trimmedSearch.isEmpty()) return Criteria.empty();
+        String pattern = "%" + trimmedSearch + "%";
+        return Criteria.where("title").like(pattern).ignoreCase(true)
+            .or(Criteria.where("description").like(pattern).ignoreCase(true));
     }
 
     private static Sort toSpringSort(ItemSort sort) {

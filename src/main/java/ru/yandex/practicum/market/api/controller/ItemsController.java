@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import reactor.core.publisher.Mono;
-import ru.yandex.practicum.market.api.model.ItemsPageModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.domain.ItemSort;
 import ru.yandex.practicum.market.service.ItemService;
@@ -29,20 +28,20 @@ public class ItemsController {
     }
 
     @GetMapping
-    public String getItems(
+    public Mono<String> getItems(
         @Size(max = 255) @RequestParam(defaultValue = "") String search,
         @RequestParam(defaultValue = "NO") ItemSort sort,
         @Positive @RequestParam(defaultValue = "1") int pageNumber,
         @Positive @RequestParam(defaultValue = "5") int pageSize,
         Model model
     ) {
-        ItemsPageModel itemsPage = itemsService.getItems(search, sort, pageNumber, pageSize);
-        model.addAttribute("items", itemsPage.items());
-        model.addAttribute("search", search);
-        model.addAttribute("sort", sort);
-        model.addAttribute("paging", itemsPage.paging());
-
-        return "items";
+        return itemsService.getItems(search, sort, pageNumber, pageSize).map(itemsPage -> {
+            model.addAttribute("items", itemsPage.items());
+            model.addAttribute("search", search);
+            model.addAttribute("sort", sort);
+            model.addAttribute("paging", itemsPage.paging());
+            return "items";
+        });
     }
 
     @PostMapping
