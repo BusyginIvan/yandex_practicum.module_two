@@ -10,7 +10,9 @@ import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository
 import ru.yandex.practicum.market.persistence.repository.ImageRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemRepository;
+import ru.yandex.practicum.market.persistence.repository.OrderItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderItemCountRepository;
+import ru.yandex.practicum.market.persistence.repository.OrderR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderRepository;
 
 import static org.mockito.Mockito.reset;
@@ -19,8 +21,10 @@ import static org.mockito.Mockito.reset;
 public abstract class AbstractServiceTest {
 
     @Autowired protected ItemR2dbcRepository itemR2dbcRepository;
-    @Autowired protected R2dbcEntityTemplate r2dbcEntityTemplate;
+    @Autowired protected OrderR2dbcRepository orderR2dbcRepository;
     @Autowired protected CartItemCountR2dbcRepository cartItemCountR2dbcRepository;
+    @Autowired protected OrderItemCountR2dbcRepository orderItemCountR2dbcRepository;
+    @Autowired protected R2dbcEntityTemplate r2dbcEntityTemplate;
 
     @Autowired protected ItemRepository itemRepository;
     @Autowired protected CartItemCountRepository cartItemCountRepository;
@@ -32,8 +36,10 @@ public abstract class AbstractServiceTest {
     void resetMocks() {
         reset(
             itemR2dbcRepository,
-            r2dbcEntityTemplate,
+            orderR2dbcRepository,
             cartItemCountR2dbcRepository,
+            orderItemCountR2dbcRepository,
+            r2dbcEntityTemplate,
             itemRepository,
             cartItemCountRepository,
             orderRepository,
