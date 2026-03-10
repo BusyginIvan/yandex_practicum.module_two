@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import ru.yandex.practicum.market.persistence.entity.ImageEntity;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.service.ImagesService;
 
 @Validated
@@ -21,10 +21,11 @@ public class ImagesController {
     }
 
     @GetMapping
-    public ResponseEntity<byte[]> getImage(@PathVariable Long id) {
-        ImageEntity image = imagesService.getImage(id);
-        return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType(image.getContentType()))
-            .body(image.getBytes());
+    public Mono<ResponseEntity<byte[]>> getImage(@PathVariable Long id) {
+        return imagesService.getImage(id).map(image ->
+            ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(image.getContentType()))
+                .body(image.getBytes())
+        );
     }
 }

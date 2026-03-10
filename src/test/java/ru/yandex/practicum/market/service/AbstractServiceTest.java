@@ -7,6 +7,7 @@ import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import ru.yandex.practicum.market.configuration.ServiceTestConfiguration;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository;
+import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemRepository;
@@ -24,6 +25,7 @@ public abstract class AbstractServiceTest {
     @Autowired protected OrderR2dbcRepository orderR2dbcRepository;
     @Autowired protected CartItemCountR2dbcRepository cartItemCountR2dbcRepository;
     @Autowired protected OrderItemCountR2dbcRepository orderItemCountR2dbcRepository;
+    @Autowired protected ImageR2dbcRepository imageR2dbcRepository;
     @Autowired protected R2dbcEntityTemplate r2dbcEntityTemplate;
 
     @Autowired protected ItemRepository itemRepository;
@@ -39,6 +41,7 @@ public abstract class AbstractServiceTest {
             orderR2dbcRepository,
             cartItemCountR2dbcRepository,
             orderItemCountR2dbcRepository,
+            imageR2dbcRepository,
             r2dbcEntityTemplate,
             itemRepository,
             cartItemCountRepository,
