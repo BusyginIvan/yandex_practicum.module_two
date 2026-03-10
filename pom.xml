@@ -23,7 +23,7 @@
         <!-- Web -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webflux</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -57,7 +57,7 @@
         <!-- Tests -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-webmvc-test</artifactId>
+            <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
