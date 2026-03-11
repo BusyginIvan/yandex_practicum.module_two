@@ -6,15 +6,10 @@ import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import ru.yandex.practicum.market.configuration.ServiceTestConfiguration;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
-import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
-import ru.yandex.practicum.market.persistence.repository.ImageRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
-import ru.yandex.practicum.market.persistence.repository.ItemRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderItemCountR2dbcRepository;
-import ru.yandex.practicum.market.persistence.repository.OrderItemCountRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderR2dbcRepository;
-import ru.yandex.practicum.market.persistence.repository.OrderRepository;
 
 import static org.mockito.Mockito.reset;
 
@@ -28,12 +23,6 @@ public abstract class AbstractServiceTest {
     @Autowired protected ImageR2dbcRepository imageR2dbcRepository;
     @Autowired protected R2dbcEntityTemplate r2dbcEntityTemplate;
 
-    @Autowired protected ItemRepository itemRepository;
-    @Autowired protected CartItemCountRepository cartItemCountRepository;
-    @Autowired protected OrderRepository orderRepository;
-    @Autowired protected OrderItemCountRepository orderItemCountRepository;
-    @Autowired protected ImageRepository imageRepository;
-
     @BeforeEach
     void resetMocks() {
         reset(
@@ -42,12 +31,7 @@ public abstract class AbstractServiceTest {
             cartItemCountR2dbcRepository,
             orderItemCountR2dbcRepository,
             imageR2dbcRepository,
-            r2dbcEntityTemplate,
-            itemRepository,
-            cartItemCountRepository,
-            orderRepository,
-            orderItemCountRepository,
-            imageRepository
+            r2dbcEntityTemplate
         );
     }
 }

@@ -23,9 +23,6 @@ public class PostgresTestConfiguration {
             ConfigurableEnvironment env = bf.getBean(ConfigurableEnvironment.class);
 
             Map<String, Object> props = Map.of(
-                "spring.datasource.url", pg.getJdbcUrl(),
-                "spring.datasource.username", pg.getUsername(),
-                "spring.datasource.password", pg.getPassword(),
                 "spring.r2dbc.url", String.format(
                     "r2dbc:postgresql://%s:%d/%s",
                     pg.getHost(),

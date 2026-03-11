@@ -7,17 +7,16 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
+import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.BodyInserters;
 import reactor.netty.http.client.HttpClient;
 import ru.yandex.practicum.market.configuration.PostgresTestConfiguration;
 
-import javax.sql.DataSource;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -34,12 +33,18 @@ public class MarketFlowE2eTest {
 
     @LocalServerPort private int port;
 
-    @Autowired private DataSource dataSource;
+    @Autowired private DatabaseClient databaseClient;
 
     @BeforeEach
     void beforeEach() {
-        ResourceDatabasePopulator populator = new ResourceDatabasePopulator(new ClassPathResource("truncate.sql"));
-        populator.execute(dataSource);
+        List<String> statements = List.of(
+            "TRUNCATE TABLE order_item_counts RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE cart_item_counts RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE orders RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE items RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE images RESTART IDENTITY CASCADE"
+        );
+        statements.forEach(sql -> databaseClient.sql(sql).fetch().rowsUpdated().block());
 
         HttpClient httpClient = HttpClient.create().followRedirect(false);
         webTestClient = WebTestClient.bindToServer()

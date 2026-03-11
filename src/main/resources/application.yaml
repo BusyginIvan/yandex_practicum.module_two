@@ -1,10 +1,5 @@
 spring:
   application.name: market-app
-  datasource:
-    url: ${JDBC_URL}
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: org.postgresql.Driver
   r2dbc:
     url: ${R2DBC_URL:r2dbc:postgresql://localhost:5432/market}
     username: ${DB_USERNAME:market_user}
