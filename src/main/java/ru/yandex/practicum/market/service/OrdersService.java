@@ -1,6 +1,7 @@
 package ru.yandex.practicum.market.service;
 
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.OrderItemModel;
 import ru.yandex.practicum.market.api.model.OrderModel;
@@ -103,6 +104,7 @@ public class OrdersService {
         );
     }
 
+    @Transactional
     public Mono<Long> buy() {
         return cartItemCountRepository.findAll().collectList().flatMap(cartItems -> {
             if (cartItems.isEmpty()) return Mono.error(new EmptyCartException());

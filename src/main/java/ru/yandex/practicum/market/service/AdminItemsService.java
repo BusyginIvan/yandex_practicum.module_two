@@ -4,6 +4,7 @@ import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.MediaType;
 import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.exception.validation.ImageRequiredException;
 import ru.yandex.practicum.market.exception.validation.InvalidImageContentTypeException;
@@ -25,6 +26,7 @@ public class AdminItemsService {
         this.imageRepository = imageRepository;
     }
 
+    @Transactional
     public Mono<ItemR2dbcEntity> createItem(
         String title,
         String description,
