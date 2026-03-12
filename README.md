@@ -1,17 +1,18 @@
 # Витрина интернет-магазина (Spring Boot)
 
-Учебный проект. Веб-приложение витрины товаров с корзиной, оформлением заказа и историей заказов.
+Учебный проект: витрина товаров с корзиной, оформлением заказа и историей заказов.
+Реактивный стек: WebFlux + R2DBC.
 
 ## Технологии
 
 - Java 21
 - Spring Boot
-- Spring Web MVC (блокирующий стек)
+- Spring WebFlux
 - Thymeleaf
-- Spring Data JPA + Hibernate ORM
+- Spring Data R2DBC
 - PostgreSQL
 - Maven
-- JUnit 5, Spring Boot Test, MockMvc, Testcontainers
+- JUnit 5, Spring Boot Test, WebTestClient, Testcontainers
 - Docker / Docker Compose
 
 ## Функциональность
@@ -52,10 +53,10 @@
 
 ## Структура проекта
 
-- `src/main/java/.../api/controller` — MVC-контроллеры
+- `src/main/java/.../api/controller` — контроллеры WebFlux
 - `src/main/java/.../service` — бизнес-логика
-- `src/main/java/.../persistence/entity` — JPA-сущности
-- `src/main/java/.../persistence/repository` — Spring Data репозитории
+- `src/main/java/.../persistence/entity` — сущности R2DBC
+- `src/main/java/.../persistence/repository` — Spring Data R2DBC репозитории
 - `src/main/resources/templates` — Thymeleaf-шаблоны
 - `src/main/resources/schema.sql` — схема БД
 - `src/test/java` — unit/integration/e2e тесты
@@ -64,16 +65,16 @@
 
 Приложение читает:
 
-- `DB_URL`
+- `R2DBC_URL` — URL подключения к PostgreSQL через R2DBC
 - `DB_USERNAME`
 - `DB_PASSWORD`
 
-Для `docker-compose` вместо `DB_URL` используется `DB_NAME`.
+Для `docker-compose` вместо `R2DBC_URL` используется `DB_NAME`.
 
 ## Запуск локально
 
 1. Поднимите PostgreSQL и создайте БД.
-2. Заполните переменные окружения (`DB_URL`, `DB_USERNAME`, `DB_PASSWORD`).
+2. Установите переменные окружения (`R2DBC_URL`, `DB_USERNAME`, `DB_PASSWORD`).
 3. Выполните:
 
 ```bash
@@ -84,8 +85,6 @@ java -jar target/market-app-1.0-SNAPSHOT.jar
 Приложение будет доступно на `http://localhost:8080`.
 
 ## Запуск в Docker
-
-Запуск приложения и PostgreSQL:
 
 ```bash
 docker compose up --build
@@ -110,7 +109,7 @@ mvn clean test
 В проекте есть:
 
 - сервисные тесты;
-- интеграционный e2e-тест с `@SpringBootTest + MockMvc + Testcontainers`.
+- e2e-тесты с `@SpringBootTest + WebTestClient + Testcontainers`.
 
 ## Сборка артефакта
 
