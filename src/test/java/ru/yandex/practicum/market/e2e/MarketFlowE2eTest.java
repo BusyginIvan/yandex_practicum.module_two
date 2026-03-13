@@ -4,58 +4,76 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.jdbc.datasource.init.ResourceDatabasePopulator;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.MediaType;
+import org.springframework.http.client.MultipartBodyBuilder;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.web.reactive.function.BodyInserters;
+import reactor.netty.http.client.HttpClient;
 import ru.yandex.practicum.market.configuration.PostgresTestConfiguration;
-import ru.yandex.practicum.market.exception.validation.EmptyCartException;
 
-import javax.sql.DataSource;
-import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@AutoConfigureMockMvc
 @Import(PostgresTestConfiguration.class)
-@SpringBootTest(properties = "spring.sql.init.mode=always")
+@SpringBootTest(
+    properties = "spring.sql.init.mode=always",
+    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
+)
 public class MarketFlowE2eTest {
 
-    @Autowired private MockMvc mvc;
+    private WebTestClient webTestClient;
 
-    @Autowired private DataSource dataSource;
+    @LocalServerPort private int port;
+
+    @Autowired private DatabaseClient databaseClient;
 
     @BeforeEach
     void beforeEach() {
-        ResourceDatabasePopulator populator = new ResourceDatabasePopulator(new ClassPathResource("truncate.sql"));
-        populator.execute(dataSource);
+        List<String> statements = List.of(
+            "TRUNCATE TABLE order_item_counts RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE cart_item_counts RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE orders RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE items RESTART IDENTITY CASCADE",
+            "TRUNCATE TABLE images RESTART IDENTITY CASCADE"
+        );
+        statements.forEach(sql -> databaseClient.sql(sql).fetch().rowsUpdated().block());
+
+        HttpClient httpClient = HttpClient.create().followRedirect(false);
+        webTestClient = WebTestClient.bindToServer()
+            .clientConnector(new ReactorClientHttpConnector(httpClient))
+            .baseUrl("http://localhost:" + port)
+            .build();
     }
 
     @Test
     void createItem_ShouldAppearInCatalog_ImageShouldBeAvailable() throws Exception {
         createItem("Apple", "Green apple", 100);
 
-        MvcResult itemsResult = mvc.perform(get("/items"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String itemsHtml = itemsResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(itemsHtml.contains("Apple"));
-        assertTrue(itemsHtml.contains("Green apple"));
+        webTestClient.get().uri("/items")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertTrue(html.contains("Apple"));
+                assertTrue(html.contains("Green apple"));
+            });
 
-        mvc.perform(get("/images/1"))
-            .andExpect(status().isOk())
-            .andExpect(content().contentType("image/png"))
-            .andExpect(content().bytes(new byte[]{1, 2, 3}));
+        webTestClient.get().uri("/images/1")
+            .exchange()
+            .expectStatus().isOk()
+            .expectHeader().contentType(MediaType.IMAGE_PNG)
+            .expectBody(byte[].class)
+            .isEqualTo(new byte[]{1, 2, 3});
     }
 
     @Test
@@ -64,33 +82,44 @@ public class MarketFlowE2eTest {
         createItem("Apple", "Green fruit", 100);
         createItem("Car", "Vehicle", 50);
 
-        MvcResult result = mvc.perform(get("/items")
-                .param("sort", "PRICE")
-                .param("search", "")
-                .param("pageNumber", "1")
-                .param("pageSize", "5"))
-            .andExpect(status().isOk())
-            .andReturn();
+        webTestClient.get()
+            .uri(uriBuilder -> uriBuilder.path("/items")
+                .queryParam("sort", "PRICE")
+                .queryParam("search", "")
+                .queryParam("pageNumber", "1")
+                .queryParam("pageSize", "5")
+                .build())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                int carIndex = html.indexOf("Car");
+                int appleIndex = html.indexOf("Apple");
+                int bananaIndex = html.indexOf("Banana");
+                if (!(carIndex < appleIndex && appleIndex < bananaIndex)) {
+                    throw new AssertionError("Expected PRICE sort order: Car, Apple, Banana");
+                }
+            });
 
-        String html = result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        int carIndex = html.indexOf("Car");
-        int appleIndex = html.indexOf("Apple");
-        int bananaIndex = html.indexOf("Banana");
-        if (!(carIndex < appleIndex && appleIndex < bananaIndex)) {
-            throw new AssertionError("Expected PRICE sort order: Car, Apple, Banana");
-        }
-
-        MvcResult filteredResult = mvc.perform(get("/items")
-                .param("search", "vehicle")
-                .param("sort", "NO")
-                .param("pageNumber", "1")
-                .param("pageSize", "5"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String filteredHtml = filteredResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(filteredHtml.contains("Car"));
-        assertFalse(filteredHtml.contains("Apple"));
-        assertFalse(filteredHtml.contains("Banana"));
+        webTestClient.get()
+            .uri(uriBuilder -> uriBuilder.path("/items")
+                .queryParam("search", "vehicle")
+                .queryParam("sort", "NO")
+                .queryParam("pageNumber", "1")
+                .queryParam("pageSize", "5")
+                .build())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertTrue(html.contains("Car"));
+                assertFalse(html.contains("Apple"));
+                assertFalse(html.contains("Banana"));
+            });
     }
 
     @Test
@@ -103,91 +132,126 @@ public class MarketFlowE2eTest {
         addItemToCart(1);
         addItemToCart(3);
 
-        MvcResult cartResult = mvc.perform(get("/cart/items"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String cartHtml = cartResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(cartHtml.contains("Apple"));
-        assertFalse(cartHtml.contains("Banana"));
-        assertTrue(cartHtml.contains("Orange"));
-        assertTrue(cartHtml.contains("Итого: 450 руб."));
+        webTestClient.get().uri("/cart/items")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertTrue(html.contains("Apple"));
+                assertFalse(html.contains("Banana"));
+                assertTrue(html.contains("Orange"));
+                assertTrue(html.contains("Итого: 450 руб."));
+            });
 
-        mvc.perform(post("/buy"))
-            .andExpect(status().is3xxRedirection())
-            .andExpect(redirectedUrl("/orders/1?newOrder=true"));
+        webTestClient.post().uri("/buy")
+            .exchange()
+            .expectStatus().is3xxRedirection()
+            .expectHeader().valueEquals("Location", "/orders/1?newOrder=true");
 
-        MvcResult orderResult = mvc.perform(get("/orders/1").param("newOrder", "true"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String orderHtml = orderResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(orderHtml.contains("Поздравляем! Успешная покупка!"));
-        assertTrue(orderHtml.contains("Сумма: 450 руб."));
+        webTestClient.get()
+            .uri(uriBuilder -> uriBuilder.path("/orders/1")
+                .queryParam("newOrder", "true")
+                .build())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertTrue(html.contains("Поздравляем! Успешная покупка!"));
+                assertTrue(html.contains("Сумма: 450 руб."));
+            });
 
-        MvcResult emptyCartResult = mvc.perform(get("/cart/items"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String emptyCartHtml = emptyCartResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertFalse(emptyCartHtml.contains("Apple"));
-        assertFalse(emptyCartHtml.contains("Banana"));
-        assertFalse(emptyCartHtml.contains("Orange"));
-        assertFalse(emptyCartHtml.contains("Купить"));
+        webTestClient.get().uri("/cart/items")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertFalse(html.contains("Apple"));
+                assertFalse(html.contains("Banana"));
+                assertFalse(html.contains("Orange"));
+                assertFalse(html.contains("Купить"));
+            });
     }
 
     @Test
     void buy_WhenCartIsEmpty_ShouldReturnBadRequestErrorPage() throws Exception {
-        MvcResult result = mvc.perform(post("/buy"))
-            .andExpect(status().isBadRequest())
-            .andReturn();
-        assertTrue(result.getResolvedException() instanceof EmptyCartException);
+        webTestClient.post().uri("/buy")
+            .exchange()
+            .expectStatus().isBadRequest();
     }
 
     @Test
     void itemPageFlow() throws Exception {
         createItem("Pear", "Sweet pear", 170);
 
-        MvcResult itemPageResult = mvc.perform(get("/items/1"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String itemPageHtml = itemPageResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(itemPageHtml.contains("Pear"));
-        assertTrue(itemPageHtml.contains("Sweet pear"));
-        assertTrue(itemPageHtml.contains(">0<"));
+        webTestClient.get().uri("/items/1")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertTrue(html.contains("Pear"));
+                assertTrue(html.contains("Sweet pear"));
+                assertTrue(html.contains(">0<"));
+            });
 
-        MvcResult updatedItemPageResult = mvc.perform(post("/items/1").param("action", "PLUS"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String updatedItemPageHtml = updatedItemPageResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(updatedItemPageHtml.contains(">1<"));
+        webTestClient.post()
+            .uri(uriBuilder -> uriBuilder.path("/items/1").queryParam("action", "PLUS").build())
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertTrue(html.contains(">1<"));
+            });
 
-        MvcResult cartResult = mvc.perform(get("/cart/items"))
-            .andExpect(status().isOk())
-            .andReturn();
-        String cartHtml = cartResult.getResponse().getContentAsString(StandardCharsets.UTF_8);
-        assertTrue(cartHtml.contains("Pear"));
-        assertTrue(cartHtml.contains("Итого: 170 руб."));
+        webTestClient.get().uri("/cart/items")
+            .exchange()
+            .expectStatus().isOk()
+            .expectBody(String.class)
+            .consumeWith(result -> {
+                String html = result.getResponseBody();
+                assertNotNull(html);
+                assertTrue(html.contains("Pear"));
+                assertTrue(html.contains("Итого: 170 руб."));
+            });
     }
 
     private void createItem(String title, String description, long price) throws Exception {
-        MockMultipartFile image = new MockMultipartFile(
-            "image",
-            "image.png",
-            "image/png",
-            new byte[]{1, 2, 3}
-        );
+        MultipartBodyBuilder builder = new MultipartBodyBuilder();
+        builder.part("image", new ByteArrayResource(new byte[]{1, 2, 3}) {
+                @Override
+                public String getFilename() {
+                    return "image.png";
+                }
+            })
+            .contentType(MediaType.IMAGE_PNG);
+        builder.part("title", title).contentType(MediaType.TEXT_PLAIN);
+        builder.part("description", description).contentType(MediaType.TEXT_PLAIN);
+        builder.part("price", String.valueOf(price)).contentType(MediaType.TEXT_PLAIN);
 
-        mvc.perform(multipart("/admin/items")
-                .file(image)
-                .param("title", title)
-                .param("description", description)
-                .param("price", String.valueOf(price)))
-            .andExpect(status().is3xxRedirection())
-            .andExpect(redirectedUrl("/admin/items/new?created=true"));
+        webTestClient.post().uri("/admin/items")
+            .contentType(MediaType.MULTIPART_FORM_DATA)
+            .body(BodyInserters.fromMultipartData(builder.build()))
+            .exchange()
+            .expectStatus().is3xxRedirection()
+            .expectHeader().valueEquals("Location", "/admin/items/new?created=true");
     }
 
     private void addItemToCart(long itemId) throws Exception {
-        mvc.perform(post("/items")
-                .param("id", String.valueOf(itemId))
-                .param("action", "PLUS"))
-            .andExpect(status().is3xxRedirection());
+        webTestClient.post()
+            .uri(uriBuilder -> uriBuilder.path("/items")
+                .queryParam("id", String.valueOf(itemId))
+                .queryParam("action", "PLUS")
+                .build())
+            .exchange()
+            .expectStatus().is3xxRedirection();
     }
 }

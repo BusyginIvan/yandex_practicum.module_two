@@ -3,18 +3,21 @@ package ru.yandex.practicum.market.service;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.mock.web.MockMultipartFile;
-import org.springframework.web.multipart.MultipartFile;
-import ru.yandex.practicum.market.exception.validation.ImageRequiredException;
+import org.springframework.core.io.buffer.DataBuffer;
+import org.springframework.core.io.buffer.DefaultDataBufferFactory;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.multipart.FilePart;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.exception.validation.InvalidImageContentTypeException;
-import ru.yandex.practicum.market.persistence.entity.ItemEntity;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
+import ru.yandex.practicum.market.persistence.entity.ImageR2dbcEntity;
+import ru.yandex.practicum.market.persistence.entity.ItemR2dbcEntity;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -25,55 +28,54 @@ class AdminItemsServiceTest extends AbstractServiceTest {
 
     @Test
     void createItem_ShouldSaveItemWithImage() {
-        MockMultipartFile image = new MockMultipartFile(
-            "image",
-            "img.png",
-            "image/png",
-            new byte[]{1, 2, 3}
-        );
+        FilePart image = filePart("img.png", "image/png", new byte[]{1, 2, 3});
+        when(imageR2dbcRepository.save(any(ImageR2dbcEntity.class)))
+            .thenAnswer(invocation -> {
+                ImageR2dbcEntity saved = invocation.getArgument(0);
+                saved.setId(10L);
+                return Mono.just(saved);
+            });
+        when(itemR2dbcRepository.save(any(ItemR2dbcEntity.class)))
+            .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-        adminItemsService.createItem("title", "description", 100, image);
+        adminItemsService.createItem("title", "description", 100, image).block();
 
-        ArgumentCaptor<ItemEntity> captor = ArgumentCaptor.forClass(ItemEntity.class);
-        verify(itemRepository).save(captor.capture());
-        ItemEntity saved = captor.getValue();
-        assertEquals("title", saved.getTitle());
-        assertEquals("description", saved.getDescription());
-        assertEquals(100, saved.getPrice());
-        assertEquals("image/png", saved.getImage().getContentType());
-        assertArrayEquals(new byte[]{1, 2, 3}, saved.getImage().getBytes());
-    }
+        ArgumentCaptor<ImageR2dbcEntity> imageCaptor = ArgumentCaptor.forClass(ImageR2dbcEntity.class);
+        verify(imageR2dbcRepository).save(imageCaptor.capture());
+        ImageR2dbcEntity savedImage = imageCaptor.getValue();
+        assertEquals("image/png", savedImage.getContentType());
+        assertArrayEquals(new byte[]{1, 2, 3}, savedImage.getBytes());
 
-    @Test
-    void createItem_WhenImageMissing() {
-        assertThrows(ImageRequiredException.class, () ->
-            adminItemsService.createItem("title", "description", 100, null)
-        );
+        ArgumentCaptor<ItemR2dbcEntity> itemCaptor = ArgumentCaptor.forClass(ItemR2dbcEntity.class);
+        verify(itemR2dbcRepository).save(itemCaptor.capture());
+        ItemR2dbcEntity savedItem = itemCaptor.getValue();
+        assertEquals("title", savedItem.getTitle());
+        assertEquals("description", savedItem.getDescription());
+        assertEquals(100, savedItem.getPrice());
+        assertEquals(10L, savedItem.getImageId());
     }
 
     @Test
     void createItem_WhenImageContentTypeIsInvalid() {
-        MockMultipartFile image = new MockMultipartFile(
-            "image",
-            "img.txt",
-            "text/plain",
-            new byte[]{1}
-        );
+        FilePart image = filePart("img.txt", "text/plain", new byte[]{1});
 
         assertThrows(InvalidImageContentTypeException.class, () ->
-            adminItemsService.createItem("title", "description", 100, image)
+            adminItemsService.createItem("title", "description", 100, image).block()
         );
     }
 
-    @Test
-    void createItem_WhenImageReadFails() throws IOException {
-        MultipartFile image = mock(MultipartFile.class);
-        when(image.isEmpty()).thenReturn(false);
-        when(image.getContentType()).thenReturn("image/png");
-        when(image.getBytes()).thenThrow(new IOException("boom"));
+    private static FilePart filePart(String filename, String contentType, byte[] bytes) {
+        FilePart image = mock(FilePart.class);
 
-        assertThrows(UncheckedIOException.class, () ->
-            adminItemsService.createItem("title", "description", 100, image)
-        );
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.parseMediaType(contentType));
+        when(image.headers()).thenReturn(headers);
+
+        when(image.filename()).thenReturn(filename);
+
+        DataBuffer buffer = new DefaultDataBufferFactory().wrap(bytes);
+        when(image.content()).thenReturn(Flux.just(buffer));
+
+        return image;
     }
 }

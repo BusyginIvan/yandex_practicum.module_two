@@ -1,109 +1,149 @@
 package ru.yandex.practicum.market.service;
 
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.OrderItemModel;
 import ru.yandex.practicum.market.api.model.OrderModel;
 import ru.yandex.practicum.market.exception.not_found.OrderNotFoundException;
 import ru.yandex.practicum.market.exception.validation.EmptyCartException;
-import ru.yandex.practicum.market.persistence.entity.CartItemCountEntity;
-import ru.yandex.practicum.market.persistence.entity.ItemEntity;
-import ru.yandex.practicum.market.persistence.entity.OrderEntity;
-import ru.yandex.practicum.market.persistence.entity.OrderItemCountEntity;
-import ru.yandex.practicum.market.persistence.entity.OrderItemCountId;
-import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository;
-import ru.yandex.practicum.market.persistence.repository.OrderItemCountRepository;
-import ru.yandex.practicum.market.persistence.repository.OrderRepository;
+import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
+import ru.yandex.practicum.market.persistence.entity.ItemR2dbcEntity;
+import ru.yandex.practicum.market.persistence.entity.OrderItemCountR2dbcEntity;
+import ru.yandex.practicum.market.persistence.entity.OrderR2dbcEntity;
+import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
+import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
+import ru.yandex.practicum.market.persistence.repository.OrderItemCountR2dbcRepository;
+import ru.yandex.practicum.market.persistence.repository.OrderR2dbcRepository;
 
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
 public class OrdersService {
-    private final OrderRepository orderRepository;
-    private final OrderItemCountRepository orderItemCountRepository;
-    private final CartItemCountRepository cartItemCountRepository;
+    private final OrderR2dbcRepository orderRepository;
+    private final OrderItemCountR2dbcRepository orderItemCountRepository;
+    private final ItemR2dbcRepository itemRepository;
+    private final CartItemCountR2dbcRepository cartItemCountRepository;
 
     public OrdersService(
-        OrderRepository orderRepository,
-        OrderItemCountRepository orderItemCountRepository,
-        CartItemCountRepository cartItemCountRepository
+        OrderR2dbcRepository orderRepository,
+        OrderItemCountR2dbcRepository orderItemCountRepository,
+        ItemR2dbcRepository itemRepository,
+        CartItemCountR2dbcRepository cartItemCountRepository
     ) {
         this.orderRepository = orderRepository;
         this.orderItemCountRepository = orderItemCountRepository;
+        this.itemRepository = itemRepository;
         this.cartItemCountRepository = cartItemCountRepository;
     }
 
-    @Transactional(readOnly = true)
-    public List<OrderModel> getOrders() {
-        List<OrderEntity> orders = orderRepository.findAll(Sort.by(Sort.Direction.DESC, "id"));
-        if (orders.isEmpty()) return List.of();
-        List<Long> orderIds = orders.stream().map(OrderEntity::getId).toList();
+    public Mono<List<OrderModel>> getOrders() {
+        Mono<List<OrderR2dbcEntity>> ordersMono = orderRepository.findAllByOrderByIdDesc().collectList();
+        Mono<List<OrderItemCountR2dbcEntity>> itemCountsMono = orderItemCountRepository.findAll().collectList();
 
-        Map<Long, List<OrderItemCountEntity>> itemsByOrderId = orderItemCountRepository
-            .findAllByOrderIdsWithItems(orderIds)
-            .stream()
-            .collect(Collectors.groupingBy(OrderItemCountEntity::getOrderId));
-
-        return orders.stream()
-            .map(order -> toOrderModel(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
-            .toList();
+        return Mono.zip(ordersMono, itemCountsMono).flatMap(tuple -> {
+            List<OrderR2dbcEntity> orders = tuple.getT1();
+            if (orders.isEmpty()) return Mono.just(List.of());
+            List<OrderItemCountR2dbcEntity> itemCounts = tuple.getT2();
+            Map<Long, List<OrderItemCountR2dbcEntity>> itemCountsByOrderId = itemCounts.stream()
+                .collect(Collectors.groupingBy(OrderItemCountR2dbcEntity::getOrderId));
+            List<Long> itemIds = itemCounts.stream().map(OrderItemCountR2dbcEntity::getItemId).distinct().toList();
+            return itemRepository.findAllById(itemIds)
+                .collectMap(ItemR2dbcEntity::getId, Function.identity())
+                .map(itemByItemId -> buildOrderModels(orders, itemCountsByOrderId, itemByItemId));
+        });
     }
 
-    @Transactional(readOnly = true)
-    public OrderModel getOrder(long id) {
-        OrderEntity order = orderRepository.findById(id).orElseThrow(() -> new OrderNotFoundException(id));
-        List<OrderItemCountEntity> orderItems = orderItemCountRepository.findAllByOrderIdWithItems(id);
-        return toOrderModel(order, orderItems);
+    public Mono<OrderModel> getOrder(long id) {
+        Mono<OrderR2dbcEntity> orderMono = orderRepository.findById(id)
+            .switchIfEmpty(Mono.error(new OrderNotFoundException(id)));
+        Mono<List<OrderItemCountR2dbcEntity>> itemCountsMono =
+            orderItemCountRepository.findAllByOrderId(id).collectList();
+        return Mono.zip(orderMono, itemCountsMono).flatMap(tuple -> {
+            OrderR2dbcEntity order = tuple.getT1();
+            List<OrderItemCountR2dbcEntity> itemCounts = tuple.getT2();
+            List<Long> itemIds = itemCounts.stream().map(OrderItemCountR2dbcEntity::getItemId).toList();
+            return itemRepository.findAllById(itemIds)
+                .collectMap(ItemR2dbcEntity::getId, Function.identity())
+                .map(itemByItemId -> buildOrderModel(order, itemCounts, itemByItemId));
+        });
+    }
+
+    private List<OrderModel> buildOrderModels(
+        List<OrderR2dbcEntity> orders,
+        Map<Long, List<OrderItemCountR2dbcEntity>> itemCountsByOrderId,
+        Map<Long, ItemR2dbcEntity> itemByItemId
+    ) {
+        return orders.stream().map(order -> buildOrderModel(
+            order,
+            itemCountsByOrderId.getOrDefault(order.getId(), List.of()),
+            itemByItemId
+        )).toList();
+    }
+
+    private OrderModel buildOrderModel(
+        OrderR2dbcEntity order,
+        List<OrderItemCountR2dbcEntity> itemCounts,
+        Map<Long, ItemR2dbcEntity> itemByItemId
+    ) {
+        return new OrderModel(
+            order.getId(),
+            itemCounts.stream().map(itemCount -> {
+                ItemR2dbcEntity item = itemByItemId.get(itemCount.getItemId());
+                return new OrderItemModel(
+                    item.getId(),
+                    item.getTitle(),
+                    item.getPrice(),
+                    itemCount.getCount()
+                );
+            }).toList(),
+            order.getTotalSum()
+        );
     }
 
     @Transactional
-    public long buy() {
-        List<CartItemCountEntity> cartItems = cartItemCountRepository.findAllWithItems();
-        if (cartItems.isEmpty()) throw new EmptyCartException();
+    public Mono<Long> buy() {
+        return cartItemCountRepository.findAll().collectList().flatMap(cartItems -> {
+            if (cartItems.isEmpty()) return Mono.error(new EmptyCartException());
 
-        long totalSum = cartItems.stream().mapToLong(CartItemCountEntity::getSubtotal).sum();
+            List<Long> itemIds = cartItems.stream()
+                .map(CartItemCountR2dbcEntity::getItemId)
+                .toList();
 
-        OrderEntity order = new OrderEntity();
+            return itemRepository.findAllById(itemIds)
+                .collectMap(ItemR2dbcEntity::getId, Function.identity())
+                .flatMap(itemById -> buy(cartItems, itemById));
+        });
+    }
+
+    private Mono<Long> buy(
+        List<CartItemCountR2dbcEntity> cartItems,
+        Map<Long, ItemR2dbcEntity> itemById
+    ) {
+        long totalSum = cartItems.stream().mapToLong(cartItem -> {
+            ItemR2dbcEntity item = itemById.get(cartItem.getItemId());
+            return item.getPrice() * cartItem.getCount();
+        }).sum();
+
+        OrderR2dbcEntity order = new OrderR2dbcEntity();
         order.setTotalSum(totalSum);
-        orderRepository.save(order);
+        return orderRepository.save(order).flatMap(savedOrder -> {
+            List<OrderItemCountR2dbcEntity> orderItems = cartItems.stream()
+                .map(cartItem -> {
+                    OrderItemCountR2dbcEntity orderItem = new OrderItemCountR2dbcEntity();
+                    orderItem.setOrderId(savedOrder.getId());
+                    orderItem.setItemId(cartItem.getItemId());
+                    orderItem.setCount(cartItem.getCount());
+                    return orderItem;
+                })
+                .toList();
 
-        List<OrderItemCountEntity> orderItems = cartItems.stream()
-            .map(cartItem -> toOrderItemCount(order, cartItem))
-            .toList();
-        orderItemCountRepository.saveAll(orderItems);
-
-        cartItemCountRepository.deleteAllInBatch(cartItems);
-
-        return order.getId();
-    }
-
-    private static OrderItemCountEntity toOrderItemCount(OrderEntity order, CartItemCountEntity cartItem) {
-        ItemEntity item = cartItem.getItem();
-        OrderItemCountEntity orderItem = new OrderItemCountEntity();
-        orderItem.setId(new OrderItemCountId(order.getId(), item.getId()));
-        orderItem.setOrder(order);
-        orderItem.setItem(item);
-        orderItem.setCount(cartItem.getCount());
-        return orderItem;
-    }
-
-    private static OrderModel toOrderModel(OrderEntity order, List<OrderItemCountEntity> orderItems) {
-        List<OrderItemModel> items = orderItems.stream()
-            .map(OrdersService::toOrderItemModel)
-            .toList();
-        return new OrderModel(order.getId(), items, order.getTotalSum());
-    }
-
-    private static OrderItemModel toOrderItemModel(OrderItemCountEntity orderItem) {
-        ItemEntity item = orderItem.getItem();
-        return new OrderItemModel(
-            item.getId(),
-            item.getTitle(),
-            item.getPrice(),
-            orderItem.getCount()
-        );
+            return orderItemCountRepository.saveAll(orderItems)
+                .then(cartItemCountRepository.deleteAll(cartItems))
+                .thenReturn(savedOrder.getId());
+        });
     }
 }

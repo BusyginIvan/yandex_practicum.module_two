@@ -1,47 +1,62 @@
 package ru.yandex.practicum.market.service;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.CartModel;
 import ru.yandex.practicum.market.api.model.ItemModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
-import ru.yandex.practicum.market.persistence.entity.CartItemCountEntity;
-import ru.yandex.practicum.market.persistence.repository.CartItemCountRepository;
+import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
+import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
+import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.service.mapper.ItemModelMapper;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class CartService {
     private final ItemService itemService;
-    private final CartItemCountRepository cartItemCountRepository;
+    private final CartItemCountR2dbcRepository cartItemCountRepository;
+    private final ItemR2dbcRepository itemRepository;
     private final ItemModelMapper itemModelMapper;
 
     public CartService(
         ItemService itemService,
-        CartItemCountRepository cartItemCountRepository,
+        CartItemCountR2dbcRepository cartItemCountRepository,
+        ItemR2dbcRepository itemRepository,
         ItemModelMapper itemModelMapper
     ) {
         this.itemService = itemService;
         this.cartItemCountRepository = cartItemCountRepository;
+        this.itemRepository = itemRepository;
         this.itemModelMapper = itemModelMapper;
     }
 
-    @Transactional(readOnly = true)
-    public CartModel getCart() {
+    public Mono<CartModel> getCart() {
         return loadCart();
     }
 
-    @Transactional
-    public CartModel changeItemCount(long itemId, CartItemCountAction action) {
-        itemService.updateCartItemCount(itemId, action);
-        return loadCart();
+    public Mono<CartModel> changeItemCount(long itemId, CartItemCountAction action) {
+        return itemService.updateCartItemCount(itemId, action).then(loadCart());
     }
 
-    private CartModel loadCart() {
-        List<CartItemCountEntity> cartItems = cartItemCountRepository.findAllWithItems();
-        List<ItemModel> itemModels = cartItems.stream().map(itemModelMapper::toItemModel).toList();
-        long total = cartItems.stream().mapToLong(CartItemCountEntity::getSubtotal).sum();
-        return new CartModel(itemModels, total);
+    private Mono<CartModel> loadCart() {
+        return cartItemCountRepository.findAll().collectList().flatMap(cartItems -> {
+            if (cartItems.isEmpty()) return Mono.just(new CartModel(List.of(), 0));
+
+            List<Long> itemIds = cartItems.stream().map(CartItemCountR2dbcEntity::getItemId).toList();
+            Map<Long, Integer> counts = cartItems.stream()
+                .collect(Collectors.toMap(CartItemCountR2dbcEntity::getItemId, CartItemCountR2dbcEntity::getCount));
+
+            return itemRepository.findAllById(itemIds).collectList().map(items -> {
+                List<ItemModel> itemModels = items.stream()
+                    .map(item -> itemModelMapper.toItemModel(item, counts.get(item.getId())))
+                    .toList();
+                long total = itemModels.stream().mapToLong(ItemModel::getSubtotal).sum();
+
+                return new CartModel(itemModels, total);
+            });
+        });
     }
 }

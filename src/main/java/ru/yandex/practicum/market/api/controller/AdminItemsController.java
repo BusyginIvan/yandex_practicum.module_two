@@ -1,20 +1,19 @@
 package ru.yandex.practicum.market.api.controller;
 
-import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
+import org.springframework.http.codec.multipart.FilePart;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.annotation.Validated;
-import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+import org.springframework.web.server.ServerWebInputException;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.exception.validation.ValidationException;
 import ru.yandex.practicum.market.service.AdminItemsService;
 
@@ -38,25 +37,35 @@ public class AdminItemsController {
     }
 
     @PostMapping
-    public String createItem(
-        @Size(max = 255) @RequestParam String title,
-        @Size(max = 4096) @RequestParam String description,
-        @Positive @RequestParam long price,
-        @RequestParam(required = false) MultipartFile image
+    public Mono<String> createItem(
+        @Size(max = 255) @RequestPart String title,
+        @Size(max = 4096) @RequestPart String description,
+        @RequestPart String price,
+        @RequestPart FilePart image
     ) {
-        adminItemsService.createItem(title, description, price, image);
-        return "redirect:/admin/items/new?created=true";
+        return adminItemsService.createItem(title, description, parsePrice(price), image)
+            .thenReturn("redirect:/admin/items/new?created=true");
     }
 
     @ExceptionHandler({
         ValidationException.class,
         HandlerMethodValidationException.class,
-        MissingServletRequestParameterException.class,
-        MethodArgumentTypeMismatchException.class
+        ServerWebInputException.class
     })
-    public String handleValidationException(Exception e, RedirectAttributes redirectAttributes) {
-        redirectAttributes.addFlashAttribute("errorStatus", 400);
-        redirectAttributes.addFlashAttribute("errorMessage", e.getMessage());
-        return "redirect:/admin/items/new";
+    public Mono<String> handleValidationException(Exception e, Model model) {
+        model.addAttribute("errorStatus", 400);
+        model.addAttribute("errorMessage", e.getMessage());
+        model.addAttribute("created", false);
+        return Mono.just("admin-item-new");
+    }
+
+    private long parsePrice(String rawPrice) {
+        try {
+            long value = Long.parseLong(rawPrice);
+            if (value <= 0) throw new ValidationException("Price must be positive");
+            return value;
+        } catch (NumberFormatException e) {
+            throw new ValidationException("Price must be a positive number", e);
+        }
     }
 }

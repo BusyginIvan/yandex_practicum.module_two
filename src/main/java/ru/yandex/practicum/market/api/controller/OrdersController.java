@@ -7,6 +7,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.service.OrdersService;
 
 @Validated
@@ -19,27 +20,29 @@ public class OrdersController {
     }
 
     @GetMapping("/orders")
-    public String getOrders(
-        Model model
-    ) {
-        model.addAttribute("orders", ordersService.getOrders());
-        return "orders";
+    public Mono<String> getOrders(Model model) {
+        return ordersService.getOrders().map(orders -> {
+            model.addAttribute("orders", orders);
+            return "orders";
+        });
     }
 
     @GetMapping("/orders/{id}")
-    public String getOrder(
+    public Mono<String> getOrder(
         @PathVariable Long id,
         @RequestParam(defaultValue = "false") boolean newOrder,
         Model model
     ) {
-        model.addAttribute("order", ordersService.getOrder(id));
-        model.addAttribute("newOrder", newOrder);
-        return "order";
+        return ordersService.getOrder(id).map(order -> {
+            model.addAttribute("order", order);
+            model.addAttribute("newOrder", newOrder);
+            return "order";
+        });
     }
 
     @PostMapping("/buy")
-    public String buy() {
-        long orderId = ordersService.buy();
-        return String.format("redirect:/orders/%d?newOrder=true", orderId);
+    public Mono<String> buy() {
+        return ordersService.buy()
+            .map(orderId -> String.format("redirect:/orders/%d?newOrder=true", orderId));
     }
 }

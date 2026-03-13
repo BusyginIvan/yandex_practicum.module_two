@@ -2,15 +2,17 @@ package ru.yandex.practicum.market.service;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.CartModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
-import ru.yandex.practicum.market.persistence.entity.CartItemCountEntity;
-import ru.yandex.practicum.market.persistence.entity.ItemEntity;
+import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
+import ru.yandex.practicum.market.persistence.entity.ItemR2dbcEntity;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.Mockito.when;
 
 class CartServiceTest extends AbstractServiceTest {
@@ -19,33 +21,45 @@ class CartServiceTest extends AbstractServiceTest {
 
     @Test
     void getCart_ShouldReturnItemsAndTotal() {
-        when(cartItemCountRepository.findAllWithItems()).thenReturn(List.of(
-            cartItem(item(1L, "Apple", 100, 10L), 2),
-            cartItem(item(2L, "Banana", 50, 20L), 1)
+        when(cartItemCountR2dbcRepository.findAll()).thenReturn(Flux.just(
+            cartItem(1L, 2),
+            cartItem(2L, 1)
+        ));
+        when(itemR2dbcRepository.findAllById(List.of(1L, 2L))).thenReturn(Flux.just(
+            item(1L, "Apple", 100, 10L),
+            item(2L, "Banana", 50, 20L)
         ));
 
-        CartModel actual = cartService.getCart();
+        CartModel actual = cartService.getCart().block();
 
+        assertNotNull(actual);
         assertEquals(2, actual.items().size());
         assertEquals(250, actual.total());
     }
 
     @Test
     void changeItemCount_ShouldUpdateCounterAndReturnUpdatedCart() {
-        ItemEntity item = item(1L, "Apple", 100, 10L);
-        when(itemRepository.findById(1L)).thenReturn(Optional.of(item));
-        when(cartItemCountRepository.findById(1L)).thenReturn(Optional.empty());
-        when(cartItemCountRepository.findAllWithItems())
-            .thenReturn(List.of(cartItem(item, 1)));
+        when(itemR2dbcRepository.findById(1L)).thenReturn(Mono.just(item(1L, "Apple", 100, 10L)));
+        when(cartItemCountR2dbcRepository.findById(1L)).thenReturn(Mono.empty());
+        when(cartItemCountR2dbcRepository.create(org.mockito.ArgumentMatchers.any(CartItemCountR2dbcEntity.class)))
+            .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
 
-        CartModel actual = cartService.changeItemCount(1L, CartItemCountAction.PLUS);
+        when(cartItemCountR2dbcRepository.findAll()).thenReturn(Flux.just(
+            cartItem(1L, 1)
+        ));
+        when(itemR2dbcRepository.findAllById(List.of(1L))).thenReturn(Flux.just(
+            item(1L, "Apple", 100, 10L)
+        ));
 
+        CartModel actual = cartService.changeItemCount(1L, CartItemCountAction.PLUS).block();
+
+        assertNotNull(actual);
         assertEquals(1, actual.items().size());
         assertEquals(100, actual.total());
     }
 
-    private static ItemEntity item(long id, String title, long price, long imageId) {
-        ItemEntity item = new ItemEntity();
+    private static ItemR2dbcEntity item(long id, String title, long price, long imageId) {
+        ItemR2dbcEntity item = new ItemR2dbcEntity();
         item.setId(id);
         item.setTitle(title);
         item.setDescription("desc");
@@ -54,10 +68,9 @@ class CartServiceTest extends AbstractServiceTest {
         return item;
     }
 
-    private static CartItemCountEntity cartItem(ItemEntity item, int count) {
-        CartItemCountEntity cartItem = new CartItemCountEntity();
-        cartItem.setItem(item);
-        cartItem.setItemId(item.getId());
+    private static CartItemCountR2dbcEntity cartItem(long itemId, int count) {
+        CartItemCountR2dbcEntity cartItem = new CartItemCountR2dbcEntity();
+        cartItem.setItemId(itemId);
         cartItem.setCount(count);
         return cartItem;
     }

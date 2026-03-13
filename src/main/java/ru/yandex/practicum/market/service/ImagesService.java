@@ -1,21 +1,21 @@
 package ru.yandex.practicum.market.service;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.exception.not_found.ImageNotFoundException;
-import ru.yandex.practicum.market.persistence.entity.ImageEntity;
-import ru.yandex.practicum.market.persistence.repository.ImageRepository;
+import ru.yandex.practicum.market.persistence.entity.ImageR2dbcEntity;
+import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
 
 @Service
 public class ImagesService {
-    private final ImageRepository imageRepository;
+    private final ImageR2dbcRepository imageRepository;
 
-    public ImagesService(ImageRepository imageRepository) {
+    public ImagesService(ImageR2dbcRepository imageRepository) {
         this.imageRepository = imageRepository;
     }
 
-    @Transactional(readOnly = true)
-    public ImageEntity getImage(long id) {
-        return imageRepository.findById(id).orElseThrow(() -> new ImageNotFoundException(id));
+    public Mono<ImageR2dbcEntity> getImage(long id) {
+        return imageRepository.findById(id)
+            .switchIfEmpty(Mono.error(new ImageNotFoundException(id)));
     }
 }
