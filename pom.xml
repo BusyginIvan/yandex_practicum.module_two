@@ -22,5 +22,6 @@
 
     <modules>
         <module>market-app</module>
+        <module>payment-service</module>
     </modules>
 </project>
