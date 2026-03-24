@@ -2,8 +2,9 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
 COPY pom.xml .
-COPY market-app/pom.xml market-app/pom.xml
-COPY market-app/src market-app/src
+COPY openapi openapi
+COPY market-app market-app
+COPY payment-service payment-service
 RUN mvn -q -DskipTests -pl market-app -am clean package
 
 # ===== runtime stage =====
