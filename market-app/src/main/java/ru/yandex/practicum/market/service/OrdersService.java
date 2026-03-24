@@ -7,6 +7,7 @@ import ru.yandex.practicum.market.api.model.OrderItemModel;
 import ru.yandex.practicum.market.api.model.OrderModel;
 import ru.yandex.practicum.market.exception.not_found.OrderNotFoundException;
 import ru.yandex.practicum.market.exception.validation.EmptyCartException;
+import ru.yandex.practicum.market.integration.payment.PaymentClient;
 import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
 import ru.yandex.practicum.market.persistence.entity.ItemR2dbcEntity;
 import ru.yandex.practicum.market.persistence.entity.OrderItemCountR2dbcEntity;
@@ -27,17 +28,20 @@ public class OrdersService {
     private final OrderItemCountR2dbcRepository orderItemCountRepository;
     private final ItemR2dbcRepository itemRepository;
     private final CartItemCountR2dbcRepository cartItemCountRepository;
+    private final PaymentClient paymentClient;
 
     public OrdersService(
         OrderR2dbcRepository orderRepository,
         OrderItemCountR2dbcRepository orderItemCountRepository,
         ItemR2dbcRepository itemRepository,
-        CartItemCountR2dbcRepository cartItemCountRepository
+        CartItemCountR2dbcRepository cartItemCountRepository,
+        PaymentClient paymentClient
     ) {
         this.orderRepository = orderRepository;
         this.orderItemCountRepository = orderItemCountRepository;
         this.itemRepository = itemRepository;
         this.cartItemCountRepository = cartItemCountRepository;
+        this.paymentClient = paymentClient;
     }
 
     public Mono<List<OrderModel>> getOrders() {
@@ -128,6 +132,11 @@ public class OrdersService {
             return item.getPrice() * cartItem.getCount();
         }).sum();
 
+        return paymentClient.makePayment(totalSum)
+            .flatMap(ignored -> createOrder(cartItems, totalSum));
+    }
+
+    private Mono<Long> createOrder(List<CartItemCountR2dbcEntity> cartItems, long totalSum) {
         OrderR2dbcEntity order = new OrderR2dbcEntity();
         order.setTotalSum(totalSum);
         return orderRepository.save(order).flatMap(savedOrder -> {

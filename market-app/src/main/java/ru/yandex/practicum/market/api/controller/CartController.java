@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
+import ru.yandex.practicum.market.integration.payment.PaymentClient;
 import ru.yandex.practicum.market.service.CartService;
 
 @Validated
@@ -17,18 +18,23 @@ import ru.yandex.practicum.market.service.CartService;
 @RequestMapping("/cart/items")
 public class CartController {
     private final CartService cartService;
+    private final PaymentClient paymentClient;
 
-    public CartController(CartService cartService) {
+    public CartController(CartService cartService, PaymentClient paymentClient) {
         this.cartService = cartService;
+        this.paymentClient = paymentClient;
     }
 
     @GetMapping
     public Mono<String> getItems(Model model) {
-        return cartService.getCart().map(cart -> {
-            model.addAttribute("items", cart.items());
-            model.addAttribute("total", cart.total());
-            return "cart";
-        });
+        return cartService.getCart().flatMap(cart ->
+            paymentClient.checkAvailability(cart.total()).map(check -> {
+                model.addAttribute("items", cart.items());
+                model.addAttribute("total", cart.total());
+                model.addAttribute("canBuy", check.canBuy());
+                model.addAttribute("paymentErrorMessage", check.errorMessage());
+                return "cart";
+            }));
     }
 
     @PostMapping
@@ -37,10 +43,13 @@ public class CartController {
         @RequestParam CartItemCountAction action,
         Model model
     ) {
-        return cartService.changeItemCount(id, action).map(cart -> {
-            model.addAttribute("items", cart.items());
-            model.addAttribute("total", cart.total());
-            return "cart";
-        });
+        return cartService.changeItemCount(id, action).flatMap(cart ->
+            paymentClient.checkAvailability(cart.total()).map(check -> {
+                model.addAttribute("items", cart.items());
+                model.addAttribute("total", cart.total());
+                model.addAttribute("canBuy", check.canBuy());
+                model.addAttribute("paymentErrorMessage", check.errorMessage());
+                return "cart";
+            }));
     }
 }
