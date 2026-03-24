@@ -27,6 +27,7 @@ services:
       R2DBC_URL: r2dbc:postgresql://db:5432/${DB_NAME}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
+      PAYMENT_BASE_URL: http://payment-service:8081
 
   payment-service:
     container_name: payment-service
