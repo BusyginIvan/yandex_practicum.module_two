@@ -5,29 +5,29 @@ import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.ItemModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.exception.not_found.ItemNotFoundException;
+import ru.yandex.practicum.market.redis.ItemCacheService;
 import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
-import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.service.mapper.ItemModelMapper;
 
 @Service
 public class ItemService {
-    private final ItemR2dbcRepository itemRepository;
+    private final ItemCacheService itemCacheService;
     private final CartItemCountR2dbcRepository cartItemCountRepository;
     private final ItemModelMapper itemModelMapper;
 
     public ItemService(
-        ItemR2dbcRepository itemRepository,
+        ItemCacheService itemCacheService,
         CartItemCountR2dbcRepository cartItemCountRepository,
         ItemModelMapper itemModelMapper
     ) {
-        this.itemRepository = itemRepository;
+        this.itemCacheService = itemCacheService;
         this.cartItemCountRepository = cartItemCountRepository;
         this.itemModelMapper = itemModelMapper;
     }
 
     public Mono<ItemModel> getItem(long id) {
-        return itemRepository.findById(id)
+        return itemCacheService.getById(id)
             .switchIfEmpty(Mono.error(new ItemNotFoundException(id)))
             .flatMap(item -> cartItemCountRepository.findById(id)
                 .map(CartItemCountR2dbcEntity::getCount)
@@ -37,7 +37,7 @@ public class ItemService {
     }
 
     public Mono<ItemModel> updateCartItemCount(long id, CartItemCountAction action) {
-        return itemRepository.findById(id)
+        return itemCacheService.getById(id)
             .switchIfEmpty(Mono.error(new ItemNotFoundException(id)))
             .flatMap(item -> {
                 Mono<Integer> countMono = switch (action) {
