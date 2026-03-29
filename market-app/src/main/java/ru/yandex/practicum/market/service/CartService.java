@@ -7,9 +7,10 @@ import ru.yandex.practicum.market.api.model.ItemModel;
 import ru.yandex.practicum.market.domain.CartItemCountAction;
 import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
-import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
+import ru.yandex.practicum.market.redis.ItemCacheService;
 import ru.yandex.practicum.market.service.mapper.ItemModelMapper;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -18,18 +19,18 @@ import java.util.stream.Collectors;
 public class CartService {
     private final ItemService itemService;
     private final CartItemCountR2dbcRepository cartItemCountRepository;
-    private final ItemR2dbcRepository itemRepository;
+    private final ItemCacheService itemCacheService;
     private final ItemModelMapper itemModelMapper;
 
     public CartService(
         ItemService itemService,
         CartItemCountR2dbcRepository cartItemCountRepository,
-        ItemR2dbcRepository itemRepository,
+        ItemCacheService itemCacheService,
         ItemModelMapper itemModelMapper
     ) {
         this.itemService = itemService;
         this.cartItemCountRepository = cartItemCountRepository;
-        this.itemRepository = itemRepository;
+        this.itemCacheService = itemCacheService;
         this.itemModelMapper = itemModelMapper;
     }
 
@@ -49,12 +50,12 @@ public class CartService {
             Map<Long, Integer> counts = cartItems.stream()
                 .collect(Collectors.toMap(CartItemCountR2dbcEntity::getItemId, CartItemCountR2dbcEntity::getCount));
 
-            return itemRepository.findAllById(itemIds).collectList().map(items -> {
+            return itemCacheService.getByIds(itemIds).map(items -> {
                 List<ItemModel> itemModels = items.stream()
                     .map(item -> itemModelMapper.toItemModel(item, counts.get(item.getId())))
+                    .sorted(Comparator.comparing(ItemModel::id))
                     .toList();
                 long total = itemModels.stream().mapToLong(ItemModel::getSubtotal).sum();
-
                 return new CartModel(itemModels, total);
             });
         });
