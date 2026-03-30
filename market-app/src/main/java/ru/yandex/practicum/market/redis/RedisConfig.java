@@ -17,11 +17,26 @@ public class RedisConfig {
         ReactiveRedisConnectionFactory connectionFactory,
         ObjectMapper objectMapper
     ) {
-        Jackson2JsonRedisSerializer<ItemR2dbcEntity> valueSerializer =
-            new Jackson2JsonRedisSerializer<>(objectMapper, ItemR2dbcEntity.class);
+        return buildTemplate(connectionFactory, objectMapper, ItemR2dbcEntity.class);
+    }
 
-        RedisSerializationContext<String, ItemR2dbcEntity> context =
-            RedisSerializationContext.<String, ItemR2dbcEntity>newSerializationContext(new StringRedisSerializer())
+    @Bean
+    public ReactiveRedisTemplate<String, ItemsPageCache> itemsPageRedisTemplate(
+        ReactiveRedisConnectionFactory connectionFactory,
+        ObjectMapper objectMapper
+    ) {
+        return buildTemplate(connectionFactory, objectMapper, ItemsPageCache.class);
+    }
+
+    private static <T> ReactiveRedisTemplate<String, T> buildTemplate(
+        ReactiveRedisConnectionFactory connectionFactory,
+        ObjectMapper objectMapper,
+        Class<T> valueType
+    ) {
+        Jackson2JsonRedisSerializer<T> valueSerializer = new Jackson2JsonRedisSerializer<>(objectMapper, valueType);
+
+        RedisSerializationContext<String, T> context =
+            RedisSerializationContext.<String, T>newSerializationContext(new StringRedisSerializer())
                 .value(valueSerializer)
                 .build();
 
