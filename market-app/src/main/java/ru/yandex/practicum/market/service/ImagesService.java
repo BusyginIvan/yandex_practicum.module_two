@@ -4,18 +4,18 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.exception.not_found.ImageNotFoundException;
 import ru.yandex.practicum.market.persistence.entity.ImageR2dbcEntity;
-import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
+import ru.yandex.practicum.market.redis.ImagesCacheService;
 
 @Service
 public class ImagesService {
-    private final ImageR2dbcRepository imageRepository;
+    private final ImagesCacheService imagesCacheService;
 
-    public ImagesService(ImageR2dbcRepository imageRepository) {
-        this.imageRepository = imageRepository;
+    public ImagesService(ImagesCacheService imagesCacheService) {
+        this.imagesCacheService = imagesCacheService;
     }
 
     public Mono<ImageR2dbcEntity> getImage(long id) {
-        return imageRepository.findById(id)
+        return imagesCacheService.getById(id)
             .switchIfEmpty(Mono.error(new ImageNotFoundException(id)));
     }
 }
