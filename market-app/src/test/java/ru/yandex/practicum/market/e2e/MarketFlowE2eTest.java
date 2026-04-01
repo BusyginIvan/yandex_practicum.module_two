@@ -10,11 +10,13 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.BodyInserters;
 import reactor.netty.http.client.HttpClient;
 import ru.yandex.practicum.market.configuration.PostgresTestConfiguration;
+import ru.yandex.practicum.market.configuration.RedisTestConfiguration;
 
 import java.util.List;
 
@@ -22,7 +24,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Import(PostgresTestConfiguration.class)
+@Import({
+    PostgresTestConfiguration.class,
+    RedisTestConfiguration.class
+})
 @SpringBootTest(
     properties = "spring.sql.init.mode=always",
     webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
@@ -34,6 +39,7 @@ public class MarketFlowE2eTest {
     @LocalServerPort private int port;
 
     @Autowired private DatabaseClient databaseClient;
+    @Autowired private ReactiveRedisConnectionFactory redisConnectionFactory;
 
     @BeforeEach
     void beforeEach() {
@@ -45,6 +51,8 @@ public class MarketFlowE2eTest {
             "TRUNCATE TABLE images RESTART IDENTITY CASCADE"
         );
         statements.forEach(sql -> databaseClient.sql(sql).fetch().rowsUpdated().block());
+
+        redisConnectionFactory.getReactiveConnection().serverCommands().flushAll().block();
 
         HttpClient httpClient = HttpClient.create().followRedirect(false);
         webTestClient = WebTestClient.bindToServer()

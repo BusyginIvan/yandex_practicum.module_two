@@ -33,7 +33,7 @@ public class PostgresTestConfiguration {
                 "spring.r2dbc.password", pg.getPassword()
             );
 
-            env.getPropertySources().addFirst(new MapPropertySource("testcontainers", props));
+            env.getPropertySources().addFirst(new MapPropertySource("testcontainers-postgres", props));
         };
     }
 }
