@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.OrderModel;
+import ru.yandex.practicum.client.payment.model.PaymentResponse;
 import ru.yandex.practicum.market.exception.not_found.OrderNotFoundException;
 import ru.yandex.practicum.market.exception.validation.EmptyCartException;
 import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
@@ -62,12 +63,14 @@ class OrdersServiceTest extends AbstractServiceTest {
             order.setId(11L);
             return Mono.just(order);
         });
+        when(paymentClient.makePayment(250)).thenReturn(Mono.just(new PaymentResponse()));
         when(orderItemCountR2dbcRepository.saveAll(any(Iterable.class))).thenReturn(Flux.empty());
         when(cartItemCountR2dbcRepository.deleteAll(List.of(first, second))).thenReturn(Mono.empty());
 
         Long orderId = ordersService.buy().block();
 
         assertEquals(11L, orderId);
+        verify(paymentClient).makePayment(250);
         verify(orderR2dbcRepository).save(any(OrderR2dbcEntity.class));
         verify(orderItemCountR2dbcRepository).saveAll(any(Iterable.class));
         verify(cartItemCountR2dbcRepository).deleteAll(List.of(first, second));

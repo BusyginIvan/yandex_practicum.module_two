@@ -7,26 +7,34 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ByteArrayResource;
+import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
-import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.r2dbc.core.DatabaseClient;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.BodyInserters;
+import reactor.core.publisher.Mono;
 import reactor.netty.http.client.HttpClient;
+import ru.yandex.practicum.client.payment.model.PaymentResponse;
+import ru.yandex.practicum.market.configuration.PaymentClientTestConfiguration;
 import ru.yandex.practicum.market.configuration.PostgresTestConfiguration;
 import ru.yandex.practicum.market.configuration.RedisTestConfiguration;
+import ru.yandex.practicum.market.integration.payment.PaymentCheckResult;
+import ru.yandex.practicum.market.integration.payment.PaymentClient;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.when;
 
 @Import({
     PostgresTestConfiguration.class,
-    RedisTestConfiguration.class
+    RedisTestConfiguration.class,
+    PaymentClientTestConfiguration.class
 })
 @SpringBootTest(
     properties = "spring.sql.init.mode=always",
@@ -40,6 +48,7 @@ public class MarketFlowE2eTest {
 
     @Autowired private DatabaseClient databaseClient;
     @Autowired private ReactiveRedisConnectionFactory redisConnectionFactory;
+    @Autowired private PaymentClient paymentClient;
 
     @BeforeEach
     void beforeEach() {
@@ -53,6 +62,11 @@ public class MarketFlowE2eTest {
         statements.forEach(sql -> databaseClient.sql(sql).fetch().rowsUpdated().block());
 
         redisConnectionFactory.getReactiveConnection().serverCommands().flushAll().block();
+
+        when(paymentClient.checkAvailability(anyLong()))
+            .thenReturn(Mono.just(new PaymentCheckResult(true, null)));
+        when(paymentClient.makePayment(anyLong()))
+            .thenReturn(Mono.just(new PaymentResponse()));
 
         HttpClient httpClient = HttpClient.create().followRedirect(false);
         webTestClient = WebTestClient.bindToServer()
