@@ -4,7 +4,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
-import ru.yandex.practicum.market.configuration.ServiceTestConfiguration;
 import ru.yandex.practicum.market.integration.payment.PaymentClient;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;

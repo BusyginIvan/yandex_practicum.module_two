@@ -1,10 +1,11 @@
-package ru.yandex.practicum.market.configuration;
+package ru.yandex.practicum.market.service;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+import ru.yandex.practicum.market.configuration.PaymentClientTestConfiguration;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
