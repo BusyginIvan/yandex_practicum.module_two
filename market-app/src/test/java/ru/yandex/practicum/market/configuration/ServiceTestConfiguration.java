@@ -10,6 +10,9 @@ import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderR2dbcRepository;
+import ru.yandex.practicum.market.redis.ImagesCacheService;
+import ru.yandex.practicum.market.redis.ItemCacheService;
+import ru.yandex.practicum.market.redis.ItemsPageCacheService;
 
 import static org.mockito.Mockito.mock;
 
@@ -46,5 +49,20 @@ public class ServiceTestConfiguration {
     @Bean
     public ImageR2dbcRepository imageR2dbcRepository() {
         return mock(ImageR2dbcRepository.class);
+    }
+
+    @Bean
+    public ItemCacheService itemCacheService() {
+        return mock(ItemCacheService.class);
+    }
+
+    @Bean
+    public ItemsPageCacheService itemsPageCacheService() {
+        return mock(ItemsPageCacheService.class);
+    }
+
+    @Bean
+    public ImagesCacheService imagesCacheService() {
+        return mock(ImagesCacheService.class);
     }
 }

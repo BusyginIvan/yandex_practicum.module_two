@@ -11,6 +11,9 @@ import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderR2dbcRepository;
+import ru.yandex.practicum.market.redis.ImagesCacheService;
+import ru.yandex.practicum.market.redis.ItemCacheService;
+import ru.yandex.practicum.market.redis.ItemsPageCacheService;
 
 import static org.mockito.Mockito.reset;
 
@@ -23,7 +26,12 @@ public abstract class AbstractServiceTest {
     @Autowired protected OrderItemCountR2dbcRepository orderItemCountR2dbcRepository;
     @Autowired protected ImageR2dbcRepository imageR2dbcRepository;
     @Autowired protected R2dbcEntityTemplate r2dbcEntityTemplate;
+
     @Autowired protected PaymentClient paymentClient;
+
+    @Autowired protected ItemCacheService itemCacheService;
+    @Autowired protected ItemsPageCacheService itemsPageCacheService;
+    @Autowired protected ImagesCacheService imagesCacheService;
 
     @BeforeEach
     void resetMocks() {
@@ -34,7 +42,10 @@ public abstract class AbstractServiceTest {
             orderItemCountR2dbcRepository,
             imageR2dbcRepository,
             r2dbcEntityTemplate,
-            paymentClient
+            paymentClient,
+            itemCacheService,
+            itemsPageCacheService,
+            imagesCacheService
         );
     }
 }
