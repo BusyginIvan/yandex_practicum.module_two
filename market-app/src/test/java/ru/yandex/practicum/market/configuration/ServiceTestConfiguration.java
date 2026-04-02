@@ -3,6 +3,7 @@ package ru.yandex.practicum.market.configuration;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
@@ -13,6 +14,7 @@ import ru.yandex.practicum.market.persistence.repository.OrderR2dbcRepository;
 import static org.mockito.Mockito.mock;
 
 @TestConfiguration
+@Import(PaymentClientTestConfiguration.class)
 @ComponentScan(basePackages = "ru.yandex.practicum.market.service")
 public class ServiceTestConfiguration {
 

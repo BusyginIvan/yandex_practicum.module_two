@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
 import ru.yandex.practicum.market.configuration.ServiceTestConfiguration;
+import ru.yandex.practicum.market.integration.payment.PaymentClient;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
@@ -22,6 +23,7 @@ public abstract class AbstractServiceTest {
     @Autowired protected OrderItemCountR2dbcRepository orderItemCountR2dbcRepository;
     @Autowired protected ImageR2dbcRepository imageR2dbcRepository;
     @Autowired protected R2dbcEntityTemplate r2dbcEntityTemplate;
+    @Autowired protected PaymentClient paymentClient;
 
     @BeforeEach
     void resetMocks() {
@@ -31,7 +33,8 @@ public abstract class AbstractServiceTest {
             cartItemCountR2dbcRepository,
             orderItemCountR2dbcRepository,
             imageR2dbcRepository,
-            r2dbcEntityTemplate
+            r2dbcEntityTemplate,
+            paymentClient
         );
     }
 }
