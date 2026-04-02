@@ -25,10 +25,10 @@ class CartServiceTest extends AbstractServiceTest {
             cartItem(1L, 2),
             cartItem(2L, 1)
         ));
-        when(itemR2dbcRepository.findAllById(List.of(1L, 2L))).thenReturn(Flux.just(
+        when(itemCacheService.getByIds(List.of(1L, 2L))).thenReturn(Mono.just(List.of(
             item(1L, "Apple", 100, 10L),
             item(2L, "Banana", 50, 20L)
-        ));
+        )));
 
         CartModel actual = cartService.getCart().block();
 
@@ -39,7 +39,7 @@ class CartServiceTest extends AbstractServiceTest {
 
     @Test
     void changeItemCount_ShouldUpdateCounterAndReturnUpdatedCart() {
-        when(itemR2dbcRepository.findById(1L)).thenReturn(Mono.just(item(1L, "Apple", 100, 10L)));
+        when(itemCacheService.getById(1L)).thenReturn(Mono.just(item(1L, "Apple", 100, 10L)));
         when(cartItemCountR2dbcRepository.findById(1L)).thenReturn(Mono.empty());
         when(cartItemCountR2dbcRepository.create(org.mockito.ArgumentMatchers.any(CartItemCountR2dbcEntity.class)))
             .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
@@ -47,9 +47,9 @@ class CartServiceTest extends AbstractServiceTest {
         when(cartItemCountR2dbcRepository.findAll()).thenReturn(Flux.just(
             cartItem(1L, 1)
         ));
-        when(itemR2dbcRepository.findAllById(List.of(1L))).thenReturn(Flux.just(
+        when(itemCacheService.getByIds(List.of(1L))).thenReturn(Mono.just(List.of(
             item(1L, "Apple", 100, 10L)
-        ));
+        )));
 
         CartModel actual = cartService.changeItemCount(1L, CartItemCountAction.PLUS).block();
 

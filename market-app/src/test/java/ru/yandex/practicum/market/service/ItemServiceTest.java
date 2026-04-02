@@ -33,7 +33,7 @@ class ItemServiceTest extends AbstractServiceTest {
     @Test
     void getItem_ShouldReturnItemWithCount() {
         CartItemCountR2dbcEntity cartItem = cartItem(3);
-        when(itemR2dbcRepository.findById(1L)).thenReturn(Mono.just(ITEM));
+        when(itemCacheService.getById(1L)).thenReturn(Mono.just(ITEM));
         when(cartItemCountR2dbcRepository.findById(1L)).thenReturn(Mono.just(cartItem));
 
         ItemModel actual = itemService.getItem(1L).block();
@@ -46,13 +46,13 @@ class ItemServiceTest extends AbstractServiceTest {
 
     @Test
     void getItem_WhenItemMissing_ShouldThrowItemNotFoundException() {
-        when(itemR2dbcRepository.findById(1L)).thenReturn(Mono.empty());
+        when(itemCacheService.getById(1L)).thenReturn(Mono.empty());
         assertThrows(ItemNotFoundException.class, () -> itemService.getItem(1L).block());
     }
 
     @Test
     void updateCartItemCount_Plus_WhenNoCartItem_ShouldCreateNewCounter() {
-        when(itemR2dbcRepository.findById(1L)).thenReturn(Mono.just(ITEM));
+        when(itemCacheService.getById(1L)).thenReturn(Mono.just(ITEM));
         when(cartItemCountR2dbcRepository.findById(1L)).thenReturn(Mono.empty());
         when(cartItemCountR2dbcRepository.create(any(CartItemCountR2dbcEntity.class)))
             .thenAnswer(invocation -> Mono.just(invocation.getArgument(0)));
@@ -67,7 +67,7 @@ class ItemServiceTest extends AbstractServiceTest {
     @Test
     void updateCartItemCount_Minus_WhenCountBecomesZero_ShouldDeleteCounter() {
         CartItemCountR2dbcEntity cartItem = cartItem(1);
-        when(itemR2dbcRepository.findById(1L)).thenReturn(Mono.just(ITEM));
+        when(itemCacheService.getById(1L)).thenReturn(Mono.just(ITEM));
         when(cartItemCountR2dbcRepository.findById(1L)).thenReturn(Mono.just(cartItem));
         when(cartItemCountR2dbcRepository.deleteById(1L)).thenReturn(Mono.empty());
 
@@ -81,7 +81,7 @@ class ItemServiceTest extends AbstractServiceTest {
     @Test
     void updateCartItemCount_Delete_ShouldDeleteCounter() {
         CartItemCountR2dbcEntity cartItem = cartItem(5);
-        when(itemR2dbcRepository.findById(1L)).thenReturn(Mono.just(ITEM));
+        when(itemCacheService.getById(1L)).thenReturn(Mono.just(ITEM));
         when(cartItemCountR2dbcRepository.findById(1L)).thenReturn(Mono.just(cartItem));
         when(cartItemCountR2dbcRepository.deleteById(1L)).thenReturn(Mono.empty());
 

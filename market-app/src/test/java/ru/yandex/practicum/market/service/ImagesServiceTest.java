@@ -21,7 +21,7 @@ class ImagesServiceTest extends AbstractServiceTest {
         image.setId(1L);
         image.setContentType("image/png");
         image.setBytes(new byte[0]);
-        when(imageR2dbcRepository.findById(1L)).thenReturn(Mono.just(image));
+        when(imagesCacheService.getById(1L)).thenReturn(Mono.just(image));
 
         ImageR2dbcEntity actual = imagesService.getImage(1L).block();
 
@@ -30,7 +30,7 @@ class ImagesServiceTest extends AbstractServiceTest {
 
     @Test
     void getImage_WhenNotFound_ShouldThrowImageNotFoundException() {
-        when(imageR2dbcRepository.findById(1L)).thenReturn(Mono.empty());
+        when(imagesCacheService.getById(1L)).thenReturn(Mono.empty());
 
         ImageNotFoundException exception = assertThrows(
             ImageNotFoundException.class,

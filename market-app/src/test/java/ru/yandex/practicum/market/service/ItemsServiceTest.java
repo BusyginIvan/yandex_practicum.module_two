@@ -1,10 +1,7 @@
 package ru.yandex.practicum.market.service;
 
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.domain.Sort;
-import org.springframework.data.relational.core.query.Query;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import ru.yandex.practicum.market.api.model.ItemModel;
@@ -13,6 +10,7 @@ import ru.yandex.practicum.market.api.model.PagingModel;
 import ru.yandex.practicum.market.domain.ItemSort;
 import ru.yandex.practicum.market.persistence.entity.CartItemCountR2dbcEntity;
 import ru.yandex.practicum.market.persistence.entity.ItemR2dbcEntity;
+import ru.yandex.practicum.market.redis.ItemsPage;
 
 import java.util.List;
 
@@ -20,8 +18,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 class ItemsServiceTest extends AbstractServiceTest {
@@ -32,10 +28,8 @@ class ItemsServiceTest extends AbstractServiceTest {
     void getItems_ShouldReturnRowsWithPaddingAndPaging() {
         ItemR2dbcEntity item1 = item(1L, "Apple", "desc1", 100, 10L);
         ItemR2dbcEntity item2 = item(2L, "Banana", "desc2", 200, 20L);
-        when(r2dbcEntityTemplate.select(any(Query.class), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Flux.just(item1, item2));
-        when(r2dbcEntityTemplate.count(any(Query.class), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Mono.just(2L));
+        when(itemsPageCacheService.getPage("", ItemSort.NO, 1, 5))
+            .thenReturn(Mono.just(new ItemsPage(List.of(item1, item2), 2L)));
 
         CartItemCountR2dbcEntity counter = new CartItemCountR2dbcEntity();
         counter.setItemId(1L);
@@ -69,10 +63,8 @@ class ItemsServiceTest extends AbstractServiceTest {
     @Test
     void getItems_ThereArePreviousAndNextPages() {
         ItemR2dbcEntity item = item(1L, "Apple", "desc", 100, 10L);
-        when(r2dbcEntityTemplate.select(any(Query.class), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Flux.just(item));
-        when(r2dbcEntityTemplate.count(any(Query.class), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Mono.just(3L));
+        when(itemsPageCacheService.getPage("", ItemSort.NO, 2, 1))
+            .thenReturn(Mono.just(new ItemsPage(List.of(item), 3L)));
         when(cartItemCountR2dbcRepository.findAllById(List.of(1L)))
             .thenReturn(Flux.empty());
 
@@ -91,42 +83,6 @@ class ItemsServiceTest extends AbstractServiceTest {
         assertEquals(2, paging.pageNumber());
         assertTrue(paging.hasPrevious());
         assertTrue(paging.hasNext());
-    }
-
-    @Test
-    void getItems_WithPriceSort() {
-        ArgumentCaptor<Query> selectCaptor = ArgumentCaptor.forClass(Query.class);
-        when(r2dbcEntityTemplate.select(selectCaptor.capture(), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Flux.empty());
-        when(r2dbcEntityTemplate.count(any(Query.class), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Mono.just(0L));
-
-        ItemsPageModel actual = itemsService.getItems("abc", ItemSort.PRICE, 2, 10).block();
-
-        Query selectQuery = selectCaptor.getValue();
-        assertEquals(Sort.by(Sort.Direction.ASC, "price"), selectQuery.getSort());
-        assertEquals(10, selectQuery.getLimit());
-        assertEquals(10, selectQuery.getOffset());
-        assertNotNull(actual);
-        assertEquals(List.of(), actual.items());
-    }
-
-    @Test
-    void getItems_WithTitleSort() {
-        ArgumentCaptor<Query> selectCaptor = ArgumentCaptor.forClass(Query.class);
-        when(r2dbcEntityTemplate.select(selectCaptor.capture(), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Flux.empty());
-        when(r2dbcEntityTemplate.count(any(Query.class), eq(ItemR2dbcEntity.class)))
-            .thenReturn(Mono.just(0L));
-
-        ItemsPageModel actual = itemsService.getItems("", ItemSort.ALPHA, 3, 5).block();
-
-        Query selectQuery = selectCaptor.getValue();
-        assertEquals(Sort.by(Sort.Direction.ASC, "title"), selectQuery.getSort());
-        assertEquals(5, selectQuery.getLimit());
-        assertEquals(10, selectQuery.getOffset());
-        assertNotNull(actual);
-        assertEquals(List.of(), actual.items());
     }
 
     private static ItemR2dbcEntity item(long id, String title, String description, long price, long imageId) {
