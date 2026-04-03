@@ -1,88 +1,77 @@
-# Витрина интернет-магазина (Spring Boot)
+# Витрина интернет-магазина + сервис платежей (Spring Boot, WebFlux)
 
-Учебный проект: витрина товаров с корзиной, оформлением заказа и историей заказов.
-Реактивный стек: WebFlux + R2DBC.
+Учебный мультипроект. Основное приложение — витрина товаров с корзиной и заказами. Отдельный сервис платежей отвечает за проверку баланса и проведение оплаты. Данные товаров кешируются в Redis.
+
+## Модули
+
+- `market-app` — витрина интернет-магазина.
+- `payment-service` — сервис платежей.
+- `openapi/payment-api.yaml` — OpenAPI спецификация обмена между витриной и платежным сервисом.
 
 ## Технологии
 
 - Java 21
-- Spring Boot
+- Spring Boot 3.4
 - Spring WebFlux
 - Thymeleaf
-- Spring Data R2DBC
-- PostgreSQL
+- Spring Data R2DBC (PostgreSQL)
+- Spring Data Redis Reactive
+- OpenAPI Generator
 - Maven
 - JUnit 5, Spring Boot Test, WebTestClient, Testcontainers
 - Docker / Docker Compose
 
-## Функциональность
+## Основная функциональность витрины
 
-- Витрина товаров:
-  - просмотр товаров;
-  - поиск по названию/описанию;
-  - сортировка (`NO`, `ALPHA`, `PRICE`);
-  - пагинация (`2, 5, 10, 20, 50, 100`);
-  - изменение количества товара в корзине.
-- Карточка товара:
-  - просмотр информации о товаре;
-  - изменение количества товара в корзине.
-- Корзина:
-  - список выбранных товаров;
-  - изменение количества и удаление;
-  - подсчёт общей суммы;
-  - оформление заказа.
-- Заказы:
-  - список всех заказов;
-  - страница отдельного заказа.
-- Дополнительно:
-  - загрузка изображений товаров;
-  - форма добавления товара: `/admin/items/new`.
+- Просмотр товаров, поиск, сортировка (`NO`, `ALPHA`, `PRICE`), пагинация (`2, 5, 10, 20, 50, 100`).
+- Корзина: добавление/изменение количества, удаление, подсчет суммы.
+- Заказы: создание заказа и просмотр истории.
+- Админ-форма добавления товара: `/admin/items/new`.
+- Изображения товаров доступны по `GET /images/{id}`.
 
-## Основные эндпоинты
+## Сервис платежей
 
-- `GET /` и `GET /items`
-- `POST /items`
-- `GET /items/{id}`
-- `POST /items/{id}`
-- `GET /cart/items`
-- `POST /cart/items`
-- `GET /orders`
-- `GET /orders/{id}`
-- `POST /buy`
-- `GET /images/{id}`
+REST эндпоинты:
+- `GET /balance` — возвращает текущий баланс (всегда `1000`).
+- `POST /payment` — попытка списания суммы.
 
-## Структура проекта
+Витрина при открытии корзины запрашивает баланс и блокирует кнопку покупки при недостатке средств. При покупке перед созданием заказа выполняется платеж.
 
-- `src/main/java/.../api/controller` — контроллеры WebFlux
-- `src/main/java/.../service` — бизнес-логика
-- `src/main/java/.../persistence/entity` — сущности R2DBC
-- `src/main/java/.../persistence/repository` — Spring Data R2DBC репозитории
-- `src/main/resources/templates` — Thymeleaf-шаблоны
-- `src/main/resources/schema.sql` — схема БД
-- `src/test/java` — unit/integration/e2e тесты
+## Redis кеш
+
+Кешируются:
+- товары по ключу `item:{id}`;
+- страницы списка товаров `items:page={page}:size={size}[:search=...][:sort=...]`;
+- изображения товаров `image:{id}` как Redis Hash с полями `contentType` и `bytes`.
 
 ## Переменные окружения
 
-Приложение читает:
+Витрина (`market-app`) использует:
+- `R2DBC_URL` (по умолчанию `r2dbc:postgresql://localhost:5432/market`)
+- `DB_USERNAME` (по умолчанию `market_user`)
+- `DB_PASSWORD` (по умолчанию `market_password`)
+- `REDIS_HOST` (по умолчанию `localhost`)
+- `REDIS_PORT` (по умолчанию `6379`)
+- `PAYMENT_BASE_URL` (по умолчанию `http://localhost:8081`)
 
-- `R2DBC_URL` — URL подключения к PostgreSQL через R2DBC
-- `DB_USERNAME`
-- `DB_PASSWORD`
-
-Для `docker-compose` вместо `R2DBC_URL` используется `DB_NAME`.
+Для Docker Compose используются значения из `.env` (см. `.env.example`).
 
 ## Запуск локально
 
-1. Поднимите PostgreSQL и создайте БД.
-2. Установите переменные окружения (`R2DBC_URL`, `DB_USERNAME`, `DB_PASSWORD`).
-3. Выполните:
+1. Поднимите PostgreSQL и Redis.
+2. Запустите платежный сервис:
 
 ```bash
-mvn clean package
-java -jar target/market-app-1.0-SNAPSHOT.jar
+./mvnw -pl payment-service spring-boot:run
 ```
 
-Приложение будет доступно на `http://localhost:8080`.
+3. Запустите витрину:
+
+```bash
+./mvnw -pl market-app spring-boot:run
+```
+
+Витрина будет доступна на `http://localhost:8080`, сервис платежей — на `http://localhost:8081`.
 
 ## Запуск в Docker
 
@@ -90,7 +79,7 @@ java -jar target/market-app-1.0-SNAPSHOT.jar
 docker compose up --build
 ```
 
-После старта приложение доступно на `http://localhost:8080`.
+Поднимутся PostgreSQL, Redis, `market-app` и `payment-service`.
 
 Остановка:
 
@@ -98,25 +87,20 @@ docker compose up --build
 docker compose down
 ```
 
-## Тестирование
+## Тесты
 
 Запуск всех тестов:
 
 ```bash
-mvn clean test
+./mvnw test
 ```
 
-В проекте есть:
+Тесты `market-app` используют Testcontainers для PostgreSQL и Redis.
 
-- сервисные тесты;
-- e2e-тесты с `@SpringBootTest + WebTestClient + Testcontainers`.
-
-## Сборка артефакта
-
-Executable JAR:
+## Сборка
 
 ```bash
-mvn -DskipTests package
+./mvnw -DskipTests package
 ```
 
-Артефакт: `target/market-app-1.0-SNAPSHOT.jar`.
+Собираются оба модуля.
