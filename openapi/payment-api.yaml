@@ -1,0 +1,94 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  version: 1.0.0
+  description: API for checking balance and performing payments.
+
+servers:
+  - url: http://localhost:8081
+
+paths:
+  /balance:
+    get:
+      summary: Get current balance
+      tags:
+        - Payment
+      operationId: getBalance
+      responses:
+        "200":
+          description: Current balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BalanceResponse"
+
+  /payment:
+    post:
+      summary: Perform a payment
+      tags:
+        - Payment
+      operationId: makePayment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PaymentRequest"
+      responses:
+        "200":
+          description: Payment accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaymentResponse"
+        "400":
+          description: Insufficient funds
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  schemas:
+    BalanceResponse:
+      type: object
+      properties:
+        balance:
+          type: number
+          format: double
+          example: 1000.0
+      required:
+        - balance
+
+    PaymentRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+          format: double
+          example: 250.0
+      required:
+        - amount
+
+    PaymentResponse:
+      type: object
+      properties:
+        balance:
+          type: number
+          format: double
+          example: 750.0
+      required:
+        - balance
+
+    ErrorResponse:
+      type: object
+      properties:
+        exception:
+          type: string
+          example: InsufficientFundsException
+        message:
+          type: string
+          example: Insufficient funds
+      required:
+        - exception
+        - message
