@@ -29,12 +29,12 @@ public class PaymentController implements BalanceApi, PaymentApi {
         Mono<PaymentRequest> paymentRequest,
         ServerWebExchange exchange
     ) {
-        return paymentRequest.map(request -> {
+        return paymentRequest.flatMap(request -> {
             Double amount = request.getAmount();
-            if (amount > BALANCE) throw new InsufficientFundsException();
+            if (amount > BALANCE) return Mono.error(new InsufficientFundsException());
             double newBalance = BALANCE - amount;
             PaymentResponse response = new PaymentResponse().balance(newBalance);
-            return ResponseEntity.ok(response);
+            return Mono.just(ResponseEntity.ok(response));
         });
     }
 

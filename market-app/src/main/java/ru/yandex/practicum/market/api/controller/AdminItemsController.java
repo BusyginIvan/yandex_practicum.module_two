@@ -43,7 +43,8 @@ public class AdminItemsController {
         @RequestPart String price,
         @RequestPart FilePart image
     ) {
-        return adminItemsService.createItem(title, description, parsePrice(price), image)
+        return Mono.fromCallable(() -> parsePrice(price))
+            .flatMap(parsedPrice -> adminItemsService.createItem(title, description, parsedPrice, image))
             .thenReturn("redirect:/admin/items/new?created=true");
     }
 

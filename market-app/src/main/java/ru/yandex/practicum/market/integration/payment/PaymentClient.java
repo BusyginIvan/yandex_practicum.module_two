@@ -20,7 +20,7 @@ public class PaymentClient {
     }
 
     public Mono<PaymentCheckResult> checkAvailability(long total) {
-        if (total < 0) throw new IllegalArgumentException("Payment total cannot be negative");
+        if (total < 0) return Mono.error(new IllegalArgumentException("Payment total cannot be negative"));
         if (total == 0) return Mono.just(new PaymentCheckResult(true, null));
         return paymentApi.getBalance()
             .map(response -> response.getBalance() >= total

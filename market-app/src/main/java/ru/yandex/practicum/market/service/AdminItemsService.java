@@ -53,7 +53,7 @@ public class AdminItemsService {
             byte[] bytes = new byte[buffer.readableByteCount()];
             buffer.read(bytes);
             DataBufferUtils.release(buffer);
-            if (bytes.length == 0) throw new ImageRequiredException();
+            if (bytes.length == 0) return Mono.error(new ImageRequiredException());
 
             ImageR2dbcEntity entity = new ImageR2dbcEntity();
             entity.setContentType(contentType.toString());
