@@ -1,5 +1,7 @@
 package ru.yandex.practicum.market.integration.payment;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatusCode;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClientResponseException;
@@ -11,6 +13,7 @@ import ru.yandex.practicum.client.payment.model.PaymentResponse;
 
 @Service
 public class PaymentClient {
+    private static final Logger log = LoggerFactory.getLogger(PaymentClient.class);
     private static final String INSUFFICIENT_FUNDS = "InsufficientFundsException";
 
     private final PaymentApi paymentApi;
@@ -23,6 +26,7 @@ public class PaymentClient {
         if (total < 0) return Mono.error(new IllegalArgumentException("Payment total cannot be negative"));
         if (total == 0) return Mono.just(new PaymentCheckResult(true, null));
         return paymentApi.getBalance()
+            .doOnError(ex -> log.error("Failed to check payment availability", ex))
             .map(response -> response.getBalance() >= total
                 ? new PaymentCheckResult(true, null)
                 : new PaymentCheckResult(false, "Недостаточно средств"))

@@ -62,6 +62,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       REDIS_HOST: redis
       PAYMENT_BASE_URL: http://payment-service:8081
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/master
+      KEYCLOAK_CLIENT_ID: ${KEYCLOAK_MARKET_CLIENT_ID}
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_MARKET_CLIENT_SECRET}
 
   payment-service:
     container_name: payment-service

@@ -14,6 +14,8 @@ paths:
       tags:
         - Payment
       operationId: getBalance
+      security:
+        - bearerAuth: []
       responses:
         "200":
           description: Current balance
@@ -28,6 +30,8 @@ paths:
       tags:
         - Payment
       operationId: makePayment
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -49,6 +53,12 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     BalanceResponse:
       type: object
