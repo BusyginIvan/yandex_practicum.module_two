@@ -21,7 +21,11 @@
                 <h2>
                     <span class="badge text-bg-success">Витрина магазина</span>
                 </h2>
-                <a href="/items" class="btn btn-secondary ms-auto bi bi-arrow-left-square"> Главная</a>
+                <a href="/items" class="btn btn-secondary bi bi-arrow-left-square"> Главная</a>
+                <form method="post" action="/logout" class="ms-auto" th:if="${authenticated}">
+                    <button type="submit" class="btn btn-outline-secondary bi bi-box-arrow-right"> Выйти</button>
+                </form>
+                <a href="/login" class="btn btn-secondary ms-auto bi bi-box-arrow-in-right" th:unless="${authenticated}"> Войти</a>
             </div>
         </div>
     </div>
@@ -45,7 +49,7 @@
                         </div>
                         <div class="hstack gap-2">
                             <button type="submit" class="btn btn-success bi bi-person-plus"> Зарегистрироваться</button>
-                            <a th:href="@{/login}" class="btn btn-outline-secondary ms-auto">Войти</a>
+                            <a th:href="@{/login}" class="btn btn-outline-secondary ms-auto" th:unless="${authenticated}">Войти</a>
                         </div>
                     </form>
                 </div>

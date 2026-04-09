@@ -21,7 +21,10 @@
                 <h2>
                     <span class="badge text-bg-success">Витрина магазина</span>
                 </h2>
-                <a href="/items" class="btn btn-secondary ms-auto bi bi-arrow-left-square"> Главная</a>
+                <a href="/items" class="btn btn-secondary bi bi-arrow-left-square" th:classappend="${authenticated} ? '' : 'ms-auto'"> Главная</a>
+                <form method="post" action="/logout" class="ms-auto" th:if="${authenticated}">
+                    <button type="submit" class="btn btn-outline-secondary bi bi-box-arrow-right"> Выйти</button>
+                </form>
             </div>
         </div>
     </div>
