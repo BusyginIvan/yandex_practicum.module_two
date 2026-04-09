@@ -3,6 +3,7 @@ package ru.yandex.practicum.market.integration.payment;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.oauth2.client.AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager;
 import org.springframework.security.oauth2.client.OAuth2AuthorizeRequest;
 import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientManager;
@@ -17,6 +18,7 @@ import ru.yandex.practicum.client.payment.api.PaymentApi;
 import ru.yandex.practicum.client.payment.invoker.ApiClient;
 
 @Configuration
+@Profile("!test")
 public class PaymentClientConfig {
     private static final String CLIENT_REGISTRATION_ID = "market";
     private static final String CLIENT_PRINCIPAL = "market-app";

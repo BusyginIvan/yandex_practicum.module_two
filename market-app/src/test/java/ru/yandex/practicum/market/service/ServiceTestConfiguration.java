@@ -5,12 +5,14 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.Import;
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import ru.yandex.practicum.market.configuration.PaymentClientTestConfiguration;
 import ru.yandex.practicum.market.persistence.repository.CartItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ImageR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.ItemR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderItemCountR2dbcRepository;
 import ru.yandex.practicum.market.persistence.repository.OrderR2dbcRepository;
+import ru.yandex.practicum.market.persistence.repository.UserR2dbcRepository;
 import ru.yandex.practicum.market.redis.ImagesCacheService;
 import ru.yandex.practicum.market.redis.ItemCacheService;
 import ru.yandex.practicum.market.redis.ItemsPageCacheService;
@@ -50,6 +52,16 @@ public class ServiceTestConfiguration {
     @Bean
     public ImageR2dbcRepository imageR2dbcRepository() {
         return mock(ImageR2dbcRepository.class);
+    }
+
+    @Bean
+    public UserR2dbcRepository userR2dbcRepository() {
+        return mock(UserR2dbcRepository.class);
+    }
+
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return mock(PasswordEncoder.class);
     }
 
     @Bean
