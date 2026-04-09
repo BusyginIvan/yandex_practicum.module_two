@@ -76,6 +76,9 @@ services:
     depends_on:
       keycloak:
         condition: service_healthy
+    environment:
+      KEYCLOAK_ISSUER_URI: http://keycloak:8080/realms/master
+      KEYCLOAK_MARKET_CLIENT_ID: ${KEYCLOAK_MARKET_CLIENT_ID}
     ports:
       - "8081:8081"
 
