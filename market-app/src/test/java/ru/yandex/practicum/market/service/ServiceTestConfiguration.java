@@ -65,6 +65,11 @@ public class ServiceTestConfiguration {
     }
 
     @Bean
+    public CurrentUserService currentUserService() {
+        return mock(CurrentUserService.class);
+    }
+
+    @Bean
     public ItemCacheService itemCacheService() {
         return mock(ItemCacheService.class);
     }

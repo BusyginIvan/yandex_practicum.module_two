@@ -14,6 +14,9 @@ public class OrderR2dbcEntity {
     @Id
     private Long id;
 
+    @Column("user_id")
+    private Long userId;
+
     @Column("total_sum")
     private long totalSum;
 }

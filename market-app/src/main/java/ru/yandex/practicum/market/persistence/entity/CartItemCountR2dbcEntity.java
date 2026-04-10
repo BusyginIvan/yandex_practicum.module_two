@@ -17,6 +17,9 @@ public class CartItemCountR2dbcEntity implements Persistable<Long> {
     @Column("item_id")
     private Long itemId;
 
+    @Column("user_id")
+    private Long userId;
+
     @Column("count")
     private int count;
 

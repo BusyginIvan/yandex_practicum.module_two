@@ -21,29 +21,32 @@ public class CartService {
     private final CartItemCountR2dbcRepository cartItemCountRepository;
     private final ItemCacheService itemCacheService;
     private final ItemModelMapper itemModelMapper;
+    private final CurrentUserService currentUserService;
 
     public CartService(
         ItemService itemService,
         CartItemCountR2dbcRepository cartItemCountRepository,
         ItemCacheService itemCacheService,
-        ItemModelMapper itemModelMapper
+        ItemModelMapper itemModelMapper,
+        CurrentUserService currentUserService
     ) {
         this.itemService = itemService;
         this.cartItemCountRepository = cartItemCountRepository;
         this.itemCacheService = itemCacheService;
         this.itemModelMapper = itemModelMapper;
+        this.currentUserService = currentUserService;
     }
 
     public Mono<CartModel> getCart() {
-        return loadCart();
+        return currentUserService.getCurrentUserId().flatMap(this::loadCart);
     }
 
     public Mono<CartModel> changeItemCount(long itemId, CartItemCountAction action) {
-        return itemService.updateCartItemCount(itemId, action).then(loadCart());
+        return itemService.updateCartItemCount(itemId, action).then(getCart());
     }
 
-    private Mono<CartModel> loadCart() {
-        return cartItemCountRepository.findAll().collectList().flatMap(cartItems -> {
+    private Mono<CartModel> loadCart(long userId) {
+        return cartItemCountRepository.findAllByUserId(userId).collectList().flatMap(cartItems -> {
             if (cartItems.isEmpty()) return Mono.just(new CartModel(List.of(), 0));
 
             List<Long> itemIds = cartItems.stream().map(CartItemCountR2dbcEntity::getItemId).toList();
