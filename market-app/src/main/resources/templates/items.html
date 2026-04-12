@@ -23,8 +23,12 @@
                     <h2>
                         <span class="badge text-bg-success">Витрина магазина</span>
                     </h2>
-                    <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text"> Заказы</a>
-                    <a href="/cart/items" class="btn btn-secondary bi bi-cart4"> Корзина</a>
+                    <a href="/orders" class="btn btn-secondary ms-auto bi bi-file-earmark-text" th:if="${authenticated}"> Заказы</a>
+                    <a href="/cart/items" class="btn btn-secondary bi bi-cart4" th:if="${authenticated}"> Корзина</a>
+                    <form method="post" action="/logout" th:if="${authenticated}">
+                        <button type="submit" class="btn btn-outline-secondary bi bi-box-arrow-right"> Выйти</button>
+                    </form>
+                    <a href="/login" class="btn btn-secondary ms-auto bi bi-box-arrow-in-right" th:unless="${authenticated}"> Войти</a>
                 </div>
             </div>
         </div>
@@ -67,7 +71,7 @@
                             <span class="badge text-bg-success justify-content-end" th:text="${item.price()}+' руб.'"></span>
                         </h5>
                         <p class="card-text" th:text="${item.description()}"></p>
-                        <form method="post">
+                        <form method="post" th:if="${authenticated}">
                             <div class="hstack gap-3">
                                 <button type="submit" class="btn btn-outline-secondary"
                                         th:formaction="@{/items(id=${item.id()},action='MINUS',search=${search},sort=${sort},pageSize=${paging.pageSize()},pageNumber=${paging.pageNumber()})}">-</button>

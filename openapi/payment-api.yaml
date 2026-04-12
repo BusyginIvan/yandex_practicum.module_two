@@ -14,6 +14,10 @@ paths:
       tags:
         - Payment
       operationId: getBalance
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
       responses:
         "200":
           description: Current balance
@@ -28,6 +32,10 @@ paths:
       tags:
         - Payment
       operationId: makePayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/UserIdHeader"
       requestBody:
         required: true
         content:
@@ -49,6 +57,22 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
 
 components:
+  parameters:
+    UserIdHeader:
+      name: X-User-Id
+      in: header
+      required: true
+      description: Authenticated market user id.
+      schema:
+        type: integer
+        format: int64
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   schemas:
     BalanceResponse:
       type: object

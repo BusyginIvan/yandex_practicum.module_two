@@ -29,50 +29,56 @@ public class OrdersService {
     private final ItemR2dbcRepository itemRepository;
     private final CartItemCountR2dbcRepository cartItemCountRepository;
     private final PaymentClient paymentClient;
+    private final CurrentUserService currentUserService;
 
     public OrdersService(
         OrderR2dbcRepository orderRepository,
         OrderItemCountR2dbcRepository orderItemCountRepository,
         ItemR2dbcRepository itemRepository,
         CartItemCountR2dbcRepository cartItemCountRepository,
-        PaymentClient paymentClient
+        PaymentClient paymentClient,
+        CurrentUserService currentUserService
     ) {
         this.orderRepository = orderRepository;
         this.orderItemCountRepository = orderItemCountRepository;
         this.itemRepository = itemRepository;
         this.cartItemCountRepository = cartItemCountRepository;
         this.paymentClient = paymentClient;
+        this.currentUserService = currentUserService;
     }
 
     public Mono<List<OrderModel>> getOrders() {
-        Mono<List<OrderR2dbcEntity>> ordersMono = orderRepository.findAllByOrderByIdDesc().collectList();
-        Mono<List<OrderItemCountR2dbcEntity>> itemCountsMono = orderItemCountRepository.findAll().collectList();
+        return currentUserService.getCurrentUserId()
+            .flatMap(userId -> orderRepository.findAllByUserIdOrderByIdDesc(userId).collectList())
+            .flatMap(orders -> {
+                if (orders.isEmpty()) return Mono.just(List.of());
 
-        return Mono.zip(ordersMono, itemCountsMono).flatMap(tuple -> {
-            List<OrderR2dbcEntity> orders = tuple.getT1();
-            if (orders.isEmpty()) return Mono.just(List.of());
-            List<OrderItemCountR2dbcEntity> itemCounts = tuple.getT2();
-            Map<Long, List<OrderItemCountR2dbcEntity>> itemCountsByOrderId = itemCounts.stream()
-                .collect(Collectors.groupingBy(OrderItemCountR2dbcEntity::getOrderId));
-            List<Long> itemIds = itemCounts.stream().map(OrderItemCountR2dbcEntity::getItemId).distinct().toList();
-            return itemRepository.findAllById(itemIds)
-                .collectMap(ItemR2dbcEntity::getId, Function.identity())
-                .map(itemByItemId -> buildOrderModels(orders, itemCountsByOrderId, itemByItemId));
-        });
+                List<Long> orderIds = orders.stream().map(OrderR2dbcEntity::getId).toList();
+                return orderItemCountRepository.findAllByOrderIdIn(orderIds).collectList().flatMap(itemCounts -> {
+                    Map<Long, List<OrderItemCountR2dbcEntity>> itemCountsByOrderId = itemCounts.stream()
+                        .collect(Collectors.groupingBy(OrderItemCountR2dbcEntity::getOrderId));
+                    List<Long> itemIds = itemCounts.stream().map(OrderItemCountR2dbcEntity::getItemId).distinct().toList();
+                    return itemRepository.findAllById(itemIds)
+                        .collectMap(ItemR2dbcEntity::getId, Function.identity())
+                        .map(itemByItemId -> buildOrderModels(orders, itemCountsByOrderId, itemByItemId));
+                });
+            });
     }
 
     public Mono<OrderModel> getOrder(long id) {
-        Mono<OrderR2dbcEntity> orderMono = orderRepository.findById(id)
-            .switchIfEmpty(Mono.error(new OrderNotFoundException(id)));
-        Mono<List<OrderItemCountR2dbcEntity>> itemCountsMono =
-            orderItemCountRepository.findAllByOrderId(id).collectList();
-        return Mono.zip(orderMono, itemCountsMono).flatMap(tuple -> {
-            OrderR2dbcEntity order = tuple.getT1();
-            List<OrderItemCountR2dbcEntity> itemCounts = tuple.getT2();
-            List<Long> itemIds = itemCounts.stream().map(OrderItemCountR2dbcEntity::getItemId).toList();
-            return itemRepository.findAllById(itemIds)
-                .collectMap(ItemR2dbcEntity::getId, Function.identity())
-                .map(itemByItemId -> buildOrderModel(order, itemCounts, itemByItemId));
+        return currentUserService.getCurrentUserId().flatMap(userId -> {
+            Mono<OrderR2dbcEntity> orderMono = orderRepository.findByIdAndUserId(id, userId)
+                .switchIfEmpty(Mono.error(new OrderNotFoundException(id)));
+            Mono<List<OrderItemCountR2dbcEntity>> itemCountsMono =
+                orderItemCountRepository.findAllByOrderId(id).collectList();
+            return Mono.zip(orderMono, itemCountsMono).flatMap(tuple -> {
+                OrderR2dbcEntity order = tuple.getT1();
+                List<OrderItemCountR2dbcEntity> itemCounts = tuple.getT2();
+                List<Long> itemIds = itemCounts.stream().map(OrderItemCountR2dbcEntity::getItemId).toList();
+                return itemRepository.findAllById(itemIds)
+                    .collectMap(ItemR2dbcEntity::getId, Function.identity())
+                    .map(itemByItemId -> buildOrderModel(order, itemCounts, itemByItemId));
+            });
         });
     }
 
@@ -110,20 +116,22 @@ public class OrdersService {
 
     @Transactional
     public Mono<Long> buy() {
-        return cartItemCountRepository.findAll().collectList().flatMap(cartItems -> {
-            if (cartItems.isEmpty()) return Mono.error(new EmptyCartException());
+        return currentUserService.getCurrentUserId().flatMap(userId ->
+            cartItemCountRepository.findAllByUserId(userId).collectList().flatMap(cartItems -> {
+                if (cartItems.isEmpty()) return Mono.error(new EmptyCartException());
 
-            List<Long> itemIds = cartItems.stream()
-                .map(CartItemCountR2dbcEntity::getItemId)
-                .toList();
+                List<Long> itemIds = cartItems.stream()
+                    .map(CartItemCountR2dbcEntity::getItemId)
+                    .toList();
 
-            return itemRepository.findAllById(itemIds)
-                .collectMap(ItemR2dbcEntity::getId, Function.identity())
-                .flatMap(itemById -> buy(cartItems, itemById));
-        });
+                return itemRepository.findAllById(itemIds)
+                    .collectMap(ItemR2dbcEntity::getId, Function.identity())
+                    .flatMap(itemById -> buy(userId, cartItems, itemById));
+            }));
     }
 
     private Mono<Long> buy(
+        long userId,
         List<CartItemCountR2dbcEntity> cartItems,
         Map<Long, ItemR2dbcEntity> itemById
     ) {
@@ -133,11 +141,12 @@ public class OrdersService {
         }).sum();
 
         return paymentClient.makePayment(totalSum)
-            .flatMap(ignored -> createOrder(cartItems, totalSum));
+            .flatMap(ignored -> createOrder(userId, cartItems, totalSum));
     }
 
-    private Mono<Long> createOrder(List<CartItemCountR2dbcEntity> cartItems, long totalSum) {
+    private Mono<Long> createOrder(long userId, List<CartItemCountR2dbcEntity> cartItems, long totalSum) {
         OrderR2dbcEntity order = new OrderR2dbcEntity();
+        order.setUserId(userId);
         order.setTotalSum(totalSum);
         return orderRepository.save(order).flatMap(savedOrder -> {
             List<OrderItemCountR2dbcEntity> orderItems = cartItems.stream()
@@ -151,7 +160,7 @@ public class OrdersService {
                 .toList();
 
             return orderItemCountRepository.saveAll(orderItems)
-                .then(cartItemCountRepository.deleteAll(cartItems))
+                .then(cartItemCountRepository.deleteAllByUserId(userId))
                 .thenReturn(savedOrder.getId());
         });
     }

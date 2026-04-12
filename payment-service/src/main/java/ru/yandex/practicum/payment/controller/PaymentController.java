@@ -14,28 +14,40 @@ import ru.yandex.practicum.payment.model.ErrorResponse;
 import ru.yandex.practicum.payment.model.PaymentRequest;
 import ru.yandex.practicum.payment.model.PaymentResponse;
 
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
 @RestController
 public class PaymentController implements BalanceApi, PaymentApi {
-    private static final double BALANCE = 1000.0;
+    private static final double DEFAULT_BALANCE = 1000.0;
+
+    private final Map<Long, Double> balances = new ConcurrentHashMap<>();
 
     @Override
-    public Mono<ResponseEntity<BalanceResponse>> getBalance(ServerWebExchange exchange) {
-        BalanceResponse response = new BalanceResponse().balance(BALANCE);
+    public Mono<ResponseEntity<BalanceResponse>> getBalance(Long xUserId, ServerWebExchange exchange) {
+        BalanceResponse response = new BalanceResponse().balance(getBalance(xUserId));
         return Mono.just(ResponseEntity.ok(response));
     }
 
     @Override
     public Mono<ResponseEntity<PaymentResponse>> makePayment(
+        Long xUserId,
         Mono<PaymentRequest> paymentRequest,
         ServerWebExchange exchange
     ) {
         return paymentRequest.flatMap(request -> {
             Double amount = request.getAmount();
-            if (amount > BALANCE) return Mono.error(new InsufficientFundsException());
-            double newBalance = BALANCE - amount;
+            double balance = getBalance(xUserId);
+            if (amount > balance) return Mono.error(new InsufficientFundsException());
+            double newBalance = balance - amount;
+            balances.put(xUserId, newBalance);
             PaymentResponse response = new PaymentResponse().balance(newBalance);
             return Mono.just(ResponseEntity.ok(response));
         });
+    }
+
+    private double getBalance(Long userId) {
+        return balances.computeIfAbsent(userId, ignored -> DEFAULT_BALANCE);
     }
 
     @ExceptionHandler(InsufficientFundsException.class)

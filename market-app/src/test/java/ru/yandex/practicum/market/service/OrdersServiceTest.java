@@ -28,7 +28,7 @@ class OrdersServiceTest extends AbstractServiceTest {
 
     @Test
     void getOrders_WhenNoOrders_ShouldReturnEmptyList() {
-        when(orderR2dbcRepository.findAllByOrderByIdDesc()).thenReturn(Flux.empty());
+        when(orderR2dbcRepository.findAllByUserIdOrderByIdDesc(1L)).thenReturn(Flux.empty());
         when(orderItemCountR2dbcRepository.findAll()).thenReturn(Flux.empty());
 
         List<OrderModel> actual = ordersService.getOrders().block();
@@ -38,14 +38,14 @@ class OrdersServiceTest extends AbstractServiceTest {
 
     @Test
     void getOrder_WhenNotFound_ShouldThrowOrderNotFoundException() {
-        when(orderR2dbcRepository.findById(1L)).thenReturn(Mono.empty());
+        when(orderR2dbcRepository.findByIdAndUserId(1L, 1L)).thenReturn(Mono.empty());
         when(orderItemCountR2dbcRepository.findAllByOrderId(1L)).thenReturn(Flux.empty());
         assertThrows(OrderNotFoundException.class, () -> ordersService.getOrder(1L).block());
     }
 
     @Test
     void buy_WhenCartIsEmpty_ShouldThrowEmptyCartException() {
-        when(cartItemCountR2dbcRepository.findAll()).thenReturn(Flux.empty());
+        when(cartItemCountR2dbcRepository.findAllByUserId(1L)).thenReturn(Flux.empty());
         assertThrows(EmptyCartException.class, () -> ordersService.buy().block());
     }
 
@@ -53,7 +53,7 @@ class OrdersServiceTest extends AbstractServiceTest {
     void buy_ShouldCreateOrderItemsAndClearCart() {
         CartItemCountR2dbcEntity first = cartItem(1L, 2);
         CartItemCountR2dbcEntity second = cartItem(2L, 1);
-        when(cartItemCountR2dbcRepository.findAll()).thenReturn(Flux.just(first, second));
+        when(cartItemCountR2dbcRepository.findAllByUserId(1L)).thenReturn(Flux.just(first, second));
         when(itemR2dbcRepository.findAllById(List.of(1L, 2L))).thenReturn(Flux.just(
             item(1L, "Apple", 100),
             item(2L, "Banana", 50)
@@ -65,7 +65,7 @@ class OrdersServiceTest extends AbstractServiceTest {
         });
         when(paymentClient.makePayment(250)).thenReturn(Mono.just(new PaymentResponse()));
         when(orderItemCountR2dbcRepository.saveAll(any(Iterable.class))).thenReturn(Flux.empty());
-        when(cartItemCountR2dbcRepository.deleteAll(List.of(first, second))).thenReturn(Mono.empty());
+        when(cartItemCountR2dbcRepository.deleteAllByUserId(1L)).thenReturn(Mono.empty());
 
         Long orderId = ordersService.buy().block();
 
@@ -73,21 +73,22 @@ class OrdersServiceTest extends AbstractServiceTest {
         verify(paymentClient).makePayment(250);
         verify(orderR2dbcRepository).save(any(OrderR2dbcEntity.class));
         verify(orderItemCountR2dbcRepository).saveAll(any(Iterable.class));
-        verify(cartItemCountR2dbcRepository).deleteAll(List.of(first, second));
+        verify(cartItemCountR2dbcRepository).deleteAllByUserId(1L);
     }
 
     @Test
     void getOrders_ShouldMapItemsForEachOrder() {
         OrderR2dbcEntity order = new OrderR2dbcEntity();
         order.setId(2L);
+        order.setUserId(1L);
         order.setTotalSum(250);
-        when(orderR2dbcRepository.findAllByOrderByIdDesc()).thenReturn(Flux.just(order));
+        when(orderR2dbcRepository.findAllByUserIdOrderByIdDesc(1L)).thenReturn(Flux.just(order));
 
         OrderItemCountR2dbcEntity orderItem = new OrderItemCountR2dbcEntity();
         orderItem.setOrderId(2L);
         orderItem.setItemId(1L);
         orderItem.setCount(2);
-        when(orderItemCountR2dbcRepository.findAll()).thenReturn(Flux.just(orderItem));
+        when(orderItemCountR2dbcRepository.findAllByOrderIdIn(List.of(2L))).thenReturn(Flux.just(orderItem));
         when(itemR2dbcRepository.findAllById(List.of(1L))).thenReturn(Flux.just(item(1L, "Apple", 100)));
 
         List<OrderModel> actual = ordersService.getOrders().block();
@@ -113,6 +114,7 @@ class OrdersServiceTest extends AbstractServiceTest {
 
     private static CartItemCountR2dbcEntity cartItem(long itemId, int count) {
         CartItemCountR2dbcEntity cartItem = new CartItemCountR2dbcEntity();
+        cartItem.setUserId(1L);
         cartItem.setItemId(itemId);
         cartItem.setCount(count);
         return cartItem;
