@@ -38,7 +38,7 @@ public class RegistrationController {
             return Mono.just("register");
         }
 
-        return userRegistrationService.register(form.getUsername(), form.getPassword())
+        return userRegistrationService.register(form.username(), form.password())
             .thenReturn("redirect:/login")
             .onErrorResume(IllegalArgumentException.class, ex -> {
                 model.addAttribute("registrationError", ex.getMessage());
