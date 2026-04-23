@@ -1,2 +1,7 @@
 server:
   port: 8081
+
+spring:
+  security.oauth2.resourceserver.jwt.issuer-uri: ${KEYCLOAK_ISSUER_URI:http://localhost:8082/realms/master}
+
+payment-service.security.expected-client-id: ${KEYCLOAK_MARKET_CLIENT_ID:market-client}

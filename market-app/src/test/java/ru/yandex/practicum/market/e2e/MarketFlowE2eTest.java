@@ -9,9 +9,12 @@ import org.springframework.context.annotation.Import;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.http.client.reactive.ReactorClientHttpConnector;
 import org.springframework.r2dbc.core.DatabaseClient;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.reactive.server.FluxExchangeResult;
 import org.springframework.test.web.reactive.server.WebTestClient;
 import org.springframework.web.reactive.function.BodyInserters;
 import reactor.core.publisher.Mono;
@@ -36,10 +39,8 @@ import static org.mockito.Mockito.when;
     RedisTestConfiguration.class,
     PaymentClientTestConfiguration.class
 })
-@SpringBootTest(
-    properties = "spring.sql.init.mode=always",
-    webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
-)
+@ActiveProfiles("test")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public class MarketFlowE2eTest {
 
     private WebTestClient webTestClient;
@@ -68,15 +69,12 @@ public class MarketFlowE2eTest {
         when(paymentClient.makePayment(anyLong()))
             .thenReturn(Mono.just(new PaymentResponse()));
 
-        HttpClient httpClient = HttpClient.create().followRedirect(false);
-        webTestClient = WebTestClient.bindToServer()
-            .clientConnector(new ReactorClientHttpConnector(httpClient))
-            .baseUrl("http://localhost:" + port)
-            .build();
+        webTestClient = createWebTestClient(null);
     }
 
     @Test
     void createItem_ShouldAppearInCatalog_ImageShouldBeAvailable() throws Exception {
+        login();
         createItem("Apple", "Green apple", 100);
 
         webTestClient.get().uri("/items")
@@ -99,7 +97,18 @@ public class MarketFlowE2eTest {
     }
 
     @Test
+    void ordersPage_WhenAnonymous_ShouldRedirectToLogin() {
+        webTestClient.get()
+            .uri("/orders")
+            .exchange()
+            .expectStatus().is3xxRedirection()
+            .expectHeader().valueMatches("Location", ".*/login$");
+    }
+
+    @Test
     void itemsSearchAndSort_ShouldFilterAndSortByPriceAscending() throws Exception {
+        login();
+
         createItem("Banana", "Yellow fruit", 300);
         createItem("Apple", "Green fruit", 100);
         createItem("Car", "Vehicle", 50);
@@ -146,6 +155,8 @@ public class MarketFlowE2eTest {
 
     @Test
     void cartAndBuyFlow_ShouldCreateOrderAndClearCart() throws Exception {
+        login();
+
         createItem("Apple", "Green apple", 100);
         createItem("Banana", "Rotten banana", 5);
         createItem("Orange", "Fresh orange", 250);
@@ -202,6 +213,7 @@ public class MarketFlowE2eTest {
 
     @Test
     void buy_WhenCartIsEmpty_ShouldReturnBadRequestErrorPage() throws Exception {
+        login();
         webTestClient.post().uri("/buy")
             .exchange()
             .expectStatus().isBadRequest();
@@ -209,6 +221,7 @@ public class MarketFlowE2eTest {
 
     @Test
     void itemPageFlow() throws Exception {
+        login();
         createItem("Pear", "Sweet pear", 170);
 
         webTestClient.get().uri("/items/1")
@@ -246,6 +259,23 @@ public class MarketFlowE2eTest {
             });
     }
 
+    @Test
+    void logout_ShouldExpireSessionCookie_AndInvalidateSession() {
+        login();
+
+        webTestClient.post()
+            .uri("/logout")
+            .exchange()
+            .expectStatus().is3xxRedirection()
+            .expectHeader().valueEquals("Location", "/login?logout");
+
+        webTestClient.get()
+            .uri("/cart/items")
+            .exchange()
+            .expectStatus().is3xxRedirection()
+            .expectHeader().valueMatches("Location", ".*/login$");
+    }
+
     private void createItem(String title, String description, long price) throws Exception {
         MultipartBodyBuilder builder = new MultipartBodyBuilder();
         builder.part("image", new ByteArrayResource(new byte[]{1, 2, 3}) {
@@ -275,5 +305,34 @@ public class MarketFlowE2eTest {
                 .build())
             .exchange()
             .expectStatus().is3xxRedirection();
+    }
+
+    private void login() {
+        FluxExchangeResult<Void> loginResult = webTestClient.post()
+            .uri("/login")
+            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+            .bodyValue("username=testuser&password=password")
+            .exchange()
+            .expectStatus().is3xxRedirection()
+            .returnResult(Void.class);
+
+        ResponseCookie sessionCookie = loginResult.getResponseCookies().getFirst("SESSION");
+        if (sessionCookie == null) {
+            throw new IllegalStateException("Session cookie was not returned after login");
+        }
+
+        webTestClient = createWebTestClient(sessionCookie.getValue());
+    }
+
+    private WebTestClient createWebTestClient(String sessionCookieValue) {
+        WebTestClient.Builder builder = WebTestClient.bindToServer()
+            .clientConnector(new ReactorClientHttpConnector(HttpClient.create().followRedirect(false)))
+            .baseUrl("http://localhost:" + port);
+
+        if (sessionCookieValue != null) {
+            builder.defaultCookie("SESSION", sessionCookieValue);
+        }
+
+        return builder.build();
     }
 }

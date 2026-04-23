@@ -14,6 +14,7 @@ import ru.yandex.practicum.market.service.mapper.ItemModelMapper;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ItemsService {
@@ -30,15 +31,18 @@ public class ItemsService {
     private final ItemsPageCacheService itemsPageCacheService;
     private final CartItemCountR2dbcRepository cartItemCountRepository;
     private final ItemModelMapper itemModelMapper;
+    private final CurrentUserService currentUserService;
 
     public ItemsService(
         ItemsPageCacheService itemsPageCacheService,
         CartItemCountR2dbcRepository cartItemCountRepository,
-        ItemModelMapper itemModelMapper
+        ItemModelMapper itemModelMapper,
+        CurrentUserService currentUserService
     ) {
         this.itemsPageCacheService = itemsPageCacheService;
         this.cartItemCountRepository = cartItemCountRepository;
         this.itemModelMapper = itemModelMapper;
+        this.currentUserService = currentUserService;
     }
 
     public Mono<ItemsPageModel> getItems(
@@ -62,20 +66,23 @@ public class ItemsService {
             }
 
             List<Long> itemIds = items.stream().map(ItemR2dbcEntity::getId).toList();
-            return cartItemCountRepository.findAllById(itemIds)
-                .collectMap(CartItemCountR2dbcEntity::getItemId, CartItemCountR2dbcEntity::getCount)
-                .map(counts -> {
-                    List<ItemModel> itemModels = items.stream()
-                        .map(item ->
-                            itemModelMapper.toItemModel(item, counts.getOrDefault(item.getId(), 0))
-                        )
-                        .toList();
-                    return new ItemsPageModel(
-                        toRows(itemModels),
-                        new PagingModel(pageSize, pageNumber, hasPrevious, hasNext)
-                    );
-                });
+            return loadCartCounts(itemIds).map(counts -> {
+                List<ItemModel> itemModels = items.stream().map(item ->
+                    itemModelMapper.toItemModel(item, counts.getOrDefault(item.getId(), 0))
+                ).toList();
+                return new ItemsPageModel(
+                    toRows(itemModels),
+                    new PagingModel(pageSize, pageNumber, hasPrevious, hasNext)
+                );
+            });
         });
+    }
+
+    private Mono<Map<Long, Integer>> loadCartCounts(List<Long> itemIds) {
+        return currentUserService.getCurrentUserIdOrEmpty()
+            .flatMap(userId -> cartItemCountRepository.findAllByUserIdAndItemIdIn(userId, itemIds)
+                .collectMap(CartItemCountR2dbcEntity::getItemId, CartItemCountR2dbcEntity::getCount))
+            .defaultIfEmpty(Map.of());
     }
 
     private static List<List<ItemModel>> toRows(List<ItemModel> items) {

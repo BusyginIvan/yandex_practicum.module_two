@@ -32,9 +32,10 @@ class ItemsServiceTest extends AbstractServiceTest {
             .thenReturn(Mono.just(new ItemsPage(List.of(item1, item2), 2L)));
 
         CartItemCountR2dbcEntity counter = new CartItemCountR2dbcEntity();
+        counter.setUserId(1L);
         counter.setItemId(1L);
         counter.setCount(3);
-        when(cartItemCountR2dbcRepository.findAllById(List.of(1L, 2L)))
+        when(cartItemCountR2dbcRepository.findAllByUserIdAndItemIdIn(1L, List.of(1L, 2L)))
             .thenReturn(Flux.just(counter));
 
         ItemsPageModel actual = itemsService.getItems("", ItemSort.NO, 1, 5).block();
@@ -65,7 +66,7 @@ class ItemsServiceTest extends AbstractServiceTest {
         ItemR2dbcEntity item = item(1L, "Apple", "desc", 100, 10L);
         when(itemsPageCacheService.getPage("", ItemSort.NO, 2, 1))
             .thenReturn(Mono.just(new ItemsPage(List.of(item), 3L)));
-        when(cartItemCountR2dbcRepository.findAllById(List.of(1L)))
+        when(cartItemCountR2dbcRepository.findAllByUserIdAndItemIdIn(1L, List.of(1L)))
             .thenReturn(Flux.empty());
 
         ItemsPageModel actual = itemsService.getItems("", ItemSort.NO, 2, 1).block();

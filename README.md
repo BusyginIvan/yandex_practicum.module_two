@@ -1,6 +1,6 @@
-# Витрина интернет-магазина + сервис платежей (Spring Boot, WebFlux)
+# Витрина интернет-магазина и сервис платежей
 
-Учебный мультипроект. Основное приложение — витрина товаров с корзиной и заказами. Отдельный сервис платежей отвечает за проверку баланса и проведение оплаты. Данные товаров кешируются в Redis.
+Учебный многомодульный проект на Spring Boot WebFlux. Основное приложение `market-app` реализует витрину товаров, корзину, заказы, регистрацию и вход пользователей. Отдельный модуль `payment-service` отвечает за проверку баланса и проведение платежей.
 
 ## Модули
 
@@ -13,52 +13,121 @@
 - Java 21
 - Spring Boot 3.4
 - Spring WebFlux
+- Spring Security: form login, OAuth2 client credentials
 - Thymeleaf
-- Spring Data R2DBC (PostgreSQL)
-- Spring Data Redis Reactive
+- Spring Data R2DBC
+- PostgreSQL
+- Reactive Redis
 - OpenAPI Generator
 - Maven
-- JUnit 5, Spring Boot Test, WebTestClient, Testcontainers
-- Docker / Docker Compose
+- JUnit 5, Mockito, WebTestClient, Testcontainers
+- Docker Compose
 
-## Основная функциональность витрины
+## Возможности `market-app`
 
 - Просмотр товаров, поиск, сортировка (`NO`, `ALPHA`, `PRICE`), пагинация (`2, 5, 10, 20, 50, 100`).
 - Корзина: добавление/изменение количества, удаление, подсчет суммы.
 - Заказы: создание заказа и просмотр истории.
-- Админ-форма добавления товара: `/admin/items/new`.
-- Изображения товаров доступны по `GET /images/{id}`.
+- Создание товаров через `/admin/items/new`.
+- Регистрация пользователя, login, logout.
 
-## Сервис платежей
+Анонимный пользователь может смотреть список товаров и страницы товаров. Корзина, заказы, покупка доступны только после авторизации.
 
-REST эндпоинты:
-- `GET /balance` — возвращает текущий баланс (всегда `1000`).
-- `POST /payment` — попытка списания суммы.
+## Пользователи и безопасность
 
-Витрина при открытии корзины запрашивает баланс и блокирует кнопку покупки при недостатке средств. При покупке перед созданием заказа выполняется платеж.
+Пользователи хранятся в таблице `users`:
 
-## Redis кеш
+- `user_id`
+- `username`
+- `password` (BCrypt-хеш)
 
-Кешируются:
+Для тестового пользователя в `data.sql` добавлен:
+
+- логин: `testuser`
+- пароль: `password`
+
+Роли в приложении не разделяются. Любой авторизованный пользователь получает доступ ко всем защищенным действиям.
+
+## Данные пользователей
+
+Корзины и заказы изолированы по пользователям:
+
+- `cart_item_counts` использует составной ключ `user_id + item_id`.
+- `orders` содержит колонку `user_id`.
+- пользователь видит и изменяет только свою корзину;
+- пользователь видит только свои заказы;
+- покупка выполняется только из корзины текущего пользователя.
+
+## Платежный сервис
+
+`payment-service` предоставляет API:
+
+- `GET /balance` - получить баланс пользователя.
+- `POST /payment` - списать сумму с баланса пользователя.
+
+Оба эндпоинта требуют:
+
+- `Authorization: Bearer <token>` - service-token от `market-app`;
+- `X-User-Id: <id>` - id текущего пользователя витрины.
+
+Баланс хранится в памяти платежного сервиса в `ConcurrentHashMap`: ключ - id пользователя, значение - текущий баланс. Если пользователь обращается впервые, ему назначается баланс `1000`.
+
+Это учебная/игрушечная реализация. При перезапуске `payment-service` балансы сбрасываются.
+
+## Service-to-Service авторизация
+
+`market-app` ходит в `payment-service` с OAuth2 client credentials токеном. Токен добавляется в `PaymentClientConfig` через `WebClient` filter.
+
+`payment-service` настроен как OAuth2 Resource Server и проверяет JWT через issuer:
+
+```yaml
+spring.security.oauth2.resourceserver.jwt.issuer-uri
+```
+
+В Docker Compose для этого поднимается сервер авторизации Keycloak.
+
+## Redis
+
+В Redis кешируются:
+
 - товары по ключу `item:{id}`;
 - страницы списка товаров `items:page={page}:size={size}[:search=...][:sort=...]`;
 - изображения товаров `image:{id}` как Redis Hash с полями `contentType` и `bytes`.
 
-## Переменные окружения
+Кеш используется только в `market-app`.
 
-Витрина (`market-app`) использует:
-- `R2DBC_URL` (по умолчанию `r2dbc:postgresql://localhost:5432/market`)
-- `DB_USERNAME` (по умолчанию `market_user`)
-- `DB_PASSWORD` (по умолчанию `market_password`)
-- `REDIS_HOST` (по умолчанию `localhost`)
-- `REDIS_PORT` (по умолчанию `6379`)
-- `PAYMENT_BASE_URL` (по умолчанию `http://localhost:8081`)
+## Конфигурация
 
-Для Docker Compose используются значения из `.env` (см. `.env.example`).
+Переменные окружения для `market-app`:
 
-## Запуск локально
+- `R2DBC_URL` - URL PostgreSQL, по умолчанию `r2dbc:postgresql://localhost:5432/market`.
+- `DB_USERNAME` - пользователь БД, по умолчанию `market_user`.
+- `DB_PASSWORD` - пароль БД, по умолчанию `market_password`.
+- `REDIS_HOST` - хост Redis, по умолчанию `localhost`.
+- `REDIS_PORT` - порт Redis, по умолчанию `6379`.
+- `PAYMENT_BASE_URL` - URL платежного сервиса, по умолчанию `http://localhost:8081`.
+- `KEYCLOAK_ISSUER_URI` - issuer Keycloak, по умолчанию `http://localhost:8082/realms/master`.
+- `KEYCLOAK_CLIENT_ID` - client id для client credentials, по умолчанию `market-client`.
+- `KEYCLOAK_CLIENT_SECRET` - client secret для client credentials.
 
-1. Поднимите PostgreSQL и Redis.
+Переменные окружения для `payment-service`:
+
+- `KEYCLOAK_ISSUER_URI` - issuer Keycloak, по умолчанию `http://localhost:8082/realms/master`.
+
+В `market-app/src/main/resources/application.yaml` SQL-инициализация по умолчанию выключена:
+
+```yaml
+spring.sql.init.mode: never
+```
+
+Для локального запуска с пустой БД нужно либо заранее применить `schema.sql` и `data.sql`, либо запустить приложение с `--spring.sql.init.mode=always`.
+
+## Локальный запуск
+
+1. Поднимите PostgreSQL, Redis и Keycloak.
+
+При настройке Keycloak нужно создать client для `market-app` с включенным client credentials flow. Его `client id` и `client secret` нужно передать в `KEYCLOAK_CLIENT_ID` и `KEYCLOAK_CLIENT_SECRET`.
+
 2. Запустите платежный сервис:
 
 ```bash
@@ -71,20 +140,42 @@ REST эндпоинты:
 ./mvnw -pl market-app spring-boot:run
 ```
 
-Витрина будет доступна на `http://localhost:8080`, сервис платежей — на `http://localhost:8081`.
+Адреса по умолчанию:
 
-## Запуск в Docker
+- `market-app`: `http://localhost:8080`
+- `payment-service`: `http://localhost:8081`
+- Keycloak в Docker Compose: `http://localhost:8082`
+
+На Windows можно использовать `.\mvnw.cmd` вместо `./mvnw`.
+
+## Docker Compose
+
+Создайте `.env` на основе `.env.example`, затем выполните:
 
 ```bash
 docker compose up --build
 ```
 
-Поднимутся PostgreSQL, Redis, `market-app` и `payment-service`.
+Будут подняты:
+
+- PostgreSQL
+- Redis
+- Keycloak
+- `market-app`
+- `payment-service`
+
+При первом запуске Docker Compose в Keycloak будет автоматически зарегистрирован client для `market-app` по значениям из `.env`.
 
 Остановка:
 
 ```bash
 docker compose down
+```
+
+Чтобы удалить volume PostgreSQL вместе с данными:
+
+```bash
+docker compose down -v
 ```
 
 ## Тесты
@@ -95,7 +186,7 @@ docker compose down
 ./mvnw test
 ```
 
-Тесты `market-app` используют Testcontainers для PostgreSQL и Redis.
+`market-app` в e2e-тестах использует Testcontainers для PostgreSQL и Redis. Платежный клиент мокается.
 
 ## Сборка
 

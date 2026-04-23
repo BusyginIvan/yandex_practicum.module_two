@@ -15,25 +15,28 @@ public class ItemService {
     private final ItemCacheService itemCacheService;
     private final CartItemCountR2dbcRepository cartItemCountRepository;
     private final ItemModelMapper itemModelMapper;
+    private final CurrentUserService currentUserService;
 
     public ItemService(
         ItemCacheService itemCacheService,
         CartItemCountR2dbcRepository cartItemCountRepository,
-        ItemModelMapper itemModelMapper
+        ItemModelMapper itemModelMapper,
+        CurrentUserService currentUserService
     ) {
         this.itemCacheService = itemCacheService;
         this.cartItemCountRepository = cartItemCountRepository;
         this.itemModelMapper = itemModelMapper;
+        this.currentUserService = currentUserService;
     }
 
     public Mono<ItemModel> getItem(long id) {
         return itemCacheService.getById(id)
             .switchIfEmpty(Mono.error(new ItemNotFoundException(id)))
-            .flatMap(item -> cartItemCountRepository.findById(id)
-                .map(CartItemCountR2dbcEntity::getCount)
+            .flatMap(item -> currentUserService.getCurrentUserIdOrEmpty()
+                .flatMap(userId -> cartItemCountRepository.findByUserIdAndItemId(userId, id)
+                    .map(CartItemCountR2dbcEntity::getCount))
                 .defaultIfEmpty(0)
-                .map(count -> itemModelMapper.toItemModel(item, count))
-            );
+                .map(count -> itemModelMapper.toItemModel(item, count)));
     }
 
     public Mono<ItemModel> updateCartItemCount(long id, CartItemCountAction action) {
@@ -50,34 +53,39 @@ public class ItemService {
     }
 
     private Mono<Integer> incrementCartItemCount(long itemId) {
-        return cartItemCountRepository.findById(itemId)
-            .flatMap(cartItemCount -> {
-                int newCount = cartItemCount.getCount() + 1;
-                cartItemCount.setCount(newCount);
-                return cartItemCountRepository.update(cartItemCount).thenReturn(newCount);
-            })
-            .switchIfEmpty(Mono.defer(() -> {
-                CartItemCountR2dbcEntity newCartItemCount = new CartItemCountR2dbcEntity();
-                newCartItemCount.setItemId(itemId);
-                newCartItemCount.setCount(1);
-                return cartItemCountRepository.create(newCartItemCount).thenReturn(1);
-            }));
+        return currentUserService.getCurrentUserId().flatMap(userId ->
+            cartItemCountRepository.findByUserIdAndItemId(userId, itemId)
+                .flatMap(cartItemCount -> {
+                    int newCount = cartItemCount.getCount() + 1;
+                    cartItemCount.setCount(newCount);
+                    return cartItemCountRepository.update(cartItemCount).thenReturn(newCount);
+                })
+                .switchIfEmpty(Mono.defer(() -> {
+                    CartItemCountR2dbcEntity newCartItemCount = new CartItemCountR2dbcEntity();
+                    newCartItemCount.setUserId(userId);
+                    newCartItemCount.setItemId(itemId);
+                    newCartItemCount.setCount(1);
+                    return cartItemCountRepository.create(newCartItemCount).thenReturn(1);
+                })));
     }
 
     private Mono<Integer> decrementCartItemCount(long itemId) {
-        return cartItemCountRepository.findById(itemId)
-            .flatMap(cartItemCount -> {
-                int newCount = cartItemCount.getCount() - 1;
-                if (newCount <= 0) {
-                    return cartItemCountRepository.deleteById(itemId).thenReturn(0);
-                }
-                cartItemCount.setCount(newCount);
-                return cartItemCountRepository.update(cartItemCount).thenReturn(newCount);
-            })
-            .defaultIfEmpty(0);
+        return currentUserService.getCurrentUserId().flatMap(userId ->
+            cartItemCountRepository.findByUserIdAndItemId(userId, itemId)
+                .flatMap(cartItemCount -> {
+                    int newCount = cartItemCount.getCount() - 1;
+                    if (newCount <= 0) {
+                        return cartItemCountRepository.deleteByUserIdAndItemId(userId, itemId).thenReturn(0);
+                    }
+                    cartItemCount.setCount(newCount);
+                    return cartItemCountRepository.update(cartItemCount).thenReturn(newCount);
+                })
+                .defaultIfEmpty(0));
     }
 
     private Mono<Integer> deleteCartItemCount(long itemId) {
-        return cartItemCountRepository.deleteById(itemId).thenReturn(0);
+        return currentUserService.getCurrentUserId()
+            .flatMap(userId -> cartItemCountRepository.deleteByUserIdAndItemId(userId, itemId))
+            .thenReturn(0);
     }
 }
